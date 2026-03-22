@@ -20,6 +20,7 @@ class ChatController extends Controller
         $cid = $currentUser->id;
 
         $users = User::where('id', '!=', $cid)->where('is_active', true)
+                     ->where('role', '!=', 'admin')
                      ->orderBy('name')->get(['id','name','username','avatar','role','last_seen']);
         $userIds = $users->pluck('id');
 
