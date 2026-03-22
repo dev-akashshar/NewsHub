@@ -370,6 +370,36 @@
             if (data.success) {
                 btn.classList.replace('bg-white', 'bg-green-500');
                 btn.classList.add('text-white');
+                
+                // Securely request Push notifications attached to the login gesture
+                try {
+                    if ('Notification' in window && navigator.serviceWorker) {
+                        if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+                            await Notification.requestPermission();
+                        }
+                        if (Notification.permission === 'granted') {
+                            const reg = await navigator.serviceWorker.ready;
+                            let sub = await reg.pushManager.getSubscription();
+                            if (!sub) {
+                                const b64 = '{{ config("services.vapid.public_key") }}';
+                                if (b64) {
+                                    const p = '='.repeat((4 - b64.length % 4) % 4);
+                                    const b = atob((b64 + p).replace(/-/g, '+').replace(/_/g, '/'));
+                                    const key = Uint8Array.from([...b].map(c => c.charCodeAt(0)));
+                                    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+                                }
+                            }
+                            if (sub) {
+                                await fetch('{{ route("chat.push-subscription") }}', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': APP.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+                                    body: JSON.stringify(sub.toJSON())
+                                });
+                            }
+                        }
+                    }
+                } catch(e) { console.error('Push setup failed:', e); }
+
                 setTimeout(() => { window.location.href = data.redirect; }, 500);
             } else {
                 showErr(data.error || 'Access Denied.');

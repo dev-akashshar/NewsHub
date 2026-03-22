@@ -18,7 +18,7 @@
 <script>
 window.APP = {
     csrfToken: document.querySelector('meta[name="csrf-token"]').content,
-    currentUserId: {{ session('hidden_user_id') }},
+    currentUserId: {{ session('hidden_user_id') ?? 'null' }},
     routes: {
         logout:         '{{ route("hidden.logout") }}',
         sessionCheck:   '{{ route("hidden.session-check") }}',

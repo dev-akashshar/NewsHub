@@ -137,7 +137,7 @@ window.APP={
 <!-- React picker -->
 <div id="react-picker" class="hidden fixed z-[101] bg-[#1e293b] border border-slate-700/50 rounded-2xl p-2 flex gap-1 shadow-2xl"></div>
 <!-- PIN modal -->
-<div id="pin-modal" class="modal-bg"><div class="bg-[#0a0f1a] rounded-3xl w-full max-w-xs border border-slate-800/50 p-8 text-center"><div class="w-14 h-14 bg-amber-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-amber-500/20"><span class="text-2xl">🔐</span></div><h3 class="text-white font-bold mb-1" id="pin-title">Enter PIN</h3><p class="text-slate-500 text-sm mb-5" id="pin-subtitle">4-digit PIN required</p><div class="flex justify-center gap-3 mb-5" id="pin-dots"><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div></div><input type="password" id="pin-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" class="w-full bg-slate-900 border border-slate-700 text-center text-2xl tracking-[.5em] text-white rounded-2xl py-3 focus:outline-none focus:ring-2 focus:ring-brand-500/40" placeholder="• • • •"><p id="pin-error" class="text-red-400 text-xs mt-2 hidden">Wrong PIN</p><div class="flex gap-2 mt-5"><button id="pin-cancel" class="flex-1 bg-slate-800 text-slate-400 font-bold rounded-xl py-2.5 text-sm hover:bg-slate-700 transition">Cancel</button><button id="pin-submit" class="flex-1 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl py-2.5 text-sm transition">Confirm</button></div></div></div>
+<div id="pin-modal" class="modal-bg"><div class="bg-[#0a0f1a] rounded-3xl w-full max-w-xs border border-slate-800/50 p-8 text-center"><div class="w-14 h-14 bg-amber-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-amber-500/20"><span class="text-2xl">🔐</span></div><h3 class="text-white font-bold mb-1" id="pin-title">Enter PIN</h3><p class="text-slate-500 text-sm mb-5" id="pin-subtitle">4-digit PIN required</p><div class="flex justify-center gap-3 mb-5" id="pin-dots"><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div></div><input type="password" id="pin-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" class="w-full bg-slate-900 border border-slate-700 text-center text-2xl tracking-[.5em] text-white rounded-2xl py-3 focus:outline-none focus:ring-2 focus:ring-brand-500/40" placeholder="• • • •"><p id="pin-error" class="text-red-400 text-xs mt-2 hidden">Wrong PIN</p><div class="flex gap-2 mt-5"><button id="pin-remove" class="hidden flex-1 bg-red-500/10 hover:bg-red-500/20 text-red-500 font-bold rounded-xl py-2.5 text-sm transition">Disable</button><button id="pin-cancel" class="flex-1 bg-slate-800 text-slate-400 font-bold rounded-xl py-2.5 text-sm hover:bg-slate-700 transition">Cancel</button><button id="pin-submit" class="flex-1 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl py-2.5 text-sm transition">Confirm</button></div></div></div>
 <!-- Avatar modal -->
 <div id="avatar-modal" class="modal-bg"><div class="bg-[#0a0f1a] rounded-3xl w-full max-w-xs border border-slate-800/50 p-8 text-center"><img id="avatar-preview" src="{{ $currentUser->avatar_url }}" class="w-24 h-24 rounded-3xl object-cover mx-auto mb-4 ring-4 ring-brand-500/20" alt=""><h3 class="text-white font-bold mb-4">Change Profile Photo</h3><label class="block w-full bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl py-2.5 text-sm cursor-pointer transition mb-3">📷 Choose Photo<input type="file" id="avatar-file" class="hidden" accept="image/*"></label><div class="flex gap-2"><button id="avatar-cancel" class="flex-1 bg-slate-800 text-slate-400 font-bold rounded-xl py-2.5 text-sm hover:bg-slate-700 transition">Cancel</button><button id="avatar-save" class="flex-1 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl py-2.5 text-sm transition">Save</button></div></div></div>
 <!-- Session modal -->
@@ -293,8 +293,25 @@ document.getElementById('ad-select').addEventListener('change',async function(){
 // PIN
 document.getElementById('pin-toggle-btn').addEventListener('click',()=>{if(!activeUserId)return;
     const b=document.querySelector(`[data-user-id="${activeUserId}"]`);const hasPin=b?.dataset.hasPin==='1';
-    if(hasPin){if(confirm('Remove PIN?')){apiFetch(APP.routes.removePin+activeUserId,'DELETE');if(b)b.dataset.hasPin='0';}}
-    else{showPinModal('Set 4-digit PIN','Set PIN',async pin=>{try{await apiFetch(APP.routes.setPin+activeUserId,'POST',{pin});if(b)b.dataset.hasPin='1';closePinModal();}catch(e){}});}
+    if(hasPin){
+        document.getElementById('pin-remove').classList.remove('hidden');
+        showPinModal('Change or Remove PIN','Update',async pin=>{
+            try{await apiFetch(APP.routes.setPin+activeUserId,'POST',{pin});closePinModal();}catch(e){}
+        });
+    } else {
+        document.getElementById('pin-remove').classList.add('hidden');
+        showPinModal('Set 4-digit PIN','Enable PIN',async pin=>{
+            try{await apiFetch(APP.routes.setPin+activeUserId,'POST',{pin});if(b)b.dataset.hasPin='1';closePinModal();}catch(e){}
+        });
+    }
+});
+
+document.getElementById('pin-remove').addEventListener('click', async () => {
+    if(!activeUserId) return;
+    const b=document.querySelector(`[data-user-id="${activeUserId}"]`);
+    if(confirm('Are you sure you want to disable PIN protection for this chat?')) {
+        try { await apiFetch(APP.routes.removePin+activeUserId,'DELETE'); if(b)b.dataset.hasPin='0'; closePinModal(); } catch(e){}
+    }
 });
 
 function showPinModal(title,btnText,cb){pinCallback=cb;document.getElementById('pin-title').textContent=title;document.getElementById('pin-submit').textContent=btnText;document.getElementById('pin-input').value='';document.getElementById('pin-error').classList.add('hidden');updatePinDots(0);document.getElementById('pin-modal').classList.add('show');document.getElementById('pin-input').focus();}
