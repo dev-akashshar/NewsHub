@@ -143,6 +143,9 @@ window.APP={
 <!-- Session modal -->
 <div id="sess-modal" class="modal-bg"><div class="bg-[#0a0f1a] rounded-3xl w-full max-w-xs border border-slate-800/50 p-8 text-center"><h3 class="text-white font-bold mb-1">Session Expired</h3><p class="text-slate-500 text-sm mb-5">Please log in again.</p><button onclick="location.href=APP.routes.news" class="w-full bg-brand-500 text-white font-bold rounded-2xl py-2.5 text-sm">Go to NewsHub</button></div></div>
 
+<!-- Notification Sound (Always Available) -->
+<audio id="chat-alert-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
 <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
 <script>
 const EMOJIS=['❤️','😂','👍','👎','😮','😢','🔥','🎉','💯','🙏'];
@@ -152,26 +155,18 @@ let replyToMsg=null,editMsgId=null,typingTimer=null,isTyping=false;
 let ctxMsgId=null,ctxMsgMine=false,ctxMsgContent='';
 let isMuted=localStorage.getItem('chat_muted')==='1';
 
-// NOTIFICATION SOUND (Web Audio API — pleasant two-tone beep)
-let audioCtx=null;
+// NOTIFICATION SOUND (HTML5 Audio)
 function playNotifSound(){
     if(isMuted)return;
     try{
-        if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-        if(audioCtx.state==='suspended')audioCtx.resume();
-        const t=audioCtx.currentTime;
-        // First tone
-        const o1=audioCtx.createOscillator();const g1=audioCtx.createGain();
-        o1.type='sine';o1.frequency.value=880;g1.gain.setValueAtTime(0.15,t);g1.gain.exponentialRampToValueAtTime(0.01,t+0.15);
-        o1.connect(g1);g1.connect(audioCtx.destination);o1.start(t);o1.stop(t+0.15);
-        // Second tone (higher)
-        const o2=audioCtx.createOscillator();const g2=audioCtx.createGain();
-        o2.type='sine';o2.frequency.value=1320;g2.gain.setValueAtTime(0.12,t+0.12);g2.gain.exponentialRampToValueAtTime(0.01,t+0.3);
-        o2.connect(g2);g2.connect(audioCtx.destination);o2.start(t+0.12);o2.stop(t+0.3);
+        const audio = document.getElementById('chat-alert-sound');
+        if (audio) {
+            audio.currentTime = 0;
+            audio.play().catch(e => console.log('Audio blocked:', e));
+        }
     }catch(e){}
 }
 const grantNotifs = () => {
-    if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
     if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
         Notification.requestPermission();
     }

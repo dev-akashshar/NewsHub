@@ -68,9 +68,12 @@
         }
     </style>
 </head>
-<body class="antialiased min-h-screen flex flex-col selection:bg-brand-500 selection:text-white relative">
+<body class="bg-slate-50 relative selection:bg-blue-600 selection:text-white">
 
-    <!-- Ambient background glows -->
+    <!-- Notification Sound (Always Available) -->
+    <audio id="news-alert-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
+    <!-- ── Privacy & Spy Screen Shield ── -->
     <div class="fixed top-0 inset-x-0 h-[500px] bg-gradient-to-b from-brand-600/10 to-transparent pointer-events-none -z-10 mix-blend-screen opacity-50"></div>
     <div class="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-brand-600/10 blur-[120px] pointer-events-none -z-20"></div>
     <div class="fixed bottom-[-20%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-600/10 blur-[120px] pointer-events-none -z-20"></div>
@@ -442,7 +445,6 @@
             'World: International summit begins today',
         ];
         function randomHeadline() { return newsHeadlines[Math.floor(Math.random() * newsHeadlines.length)]; }
-
         async function checkUnread() {
             if (!pollActive) return;
             try {
@@ -457,29 +459,25 @@
                             showBrowserNotification();
                             playNotifSound();
                         }
-                    } else badge.classList.add('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
                     lastUnread = d.count;
                 }
             } catch(e) {}
         }
 
-        let audioCtx = null;
         function playNotifSound() {
             try {
-                if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                if(audioCtx.state === 'suspended') audioCtx.resume();
-                const t = audioCtx.currentTime;
-                const o1 = audioCtx.createOscillator(); const g1 = audioCtx.createGain();
-                o1.type = 'sine'; o1.frequency.value = 880; g1.gain.setValueAtTime(0.15, t); g1.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
-                o1.connect(g1); g1.connect(audioCtx.destination); o1.start(t); o1.stop(t + 0.15);
-                const o2 = audioCtx.createOscillator(); const g2 = audioCtx.createGain();
-                o2.type = 'sine'; o2.frequency.value = 1320; g2.gain.setValueAtTime(0.12, t + 0.12); g2.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
-                o2.connect(g2); g2.connect(audioCtx.destination); o2.start(t + 0.12); o2.stop(t + 0.3);
+                const audio = document.getElementById('news-alert-sound');
+                if (audio) {
+                    audio.currentTime = 0;
+                    audio.play().catch(e => console.log('Audio autoplay blocked:', e));
+                }
             } catch(e) {}
         }
 
         const grantNotifs = () => {
-            if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
             if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
                 Notification.requestPermission();
             }
