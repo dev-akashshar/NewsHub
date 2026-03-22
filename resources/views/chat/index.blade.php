@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#030712">
     <title>NewsHub — Breaking News & Headlines</title>
@@ -145,9 +145,10 @@ let isMuted=localStorage.getItem('chat_muted')==='1';
 // NOTIFICATION SOUND (Web Audio API — pleasant two-tone beep)
 let audioCtx=null;
 function playNotifSound(){
-    if(isMuted||document.visibilityState==='visible')return;
+    if(isMuted)return;
     try{
         if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+        if(audioCtx.state==='suspended')audioCtx.resume();
         const t=audioCtx.currentTime;
         // First tone
         const o1=audioCtx.createOscillator();const g1=audioCtx.createGain();
@@ -159,6 +160,14 @@ function playNotifSound(){
         o2.connect(g2);g2.connect(audioCtx.destination);o2.start(t+0.12);o2.stop(t+0.3);
     }catch(e){}
 }
+const grantNotifs = () => {
+    if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        Notification.requestPermission();
+    }
+};
+document.body.addEventListener('click', grantNotifs, {once: true});
+document.body.addEventListener('touchstart', grantNotifs, {once: true});
 
 // MUTE TOGGLE
 function updateMuteUI(){document.getElementById('mute-btn').textContent=isMuted?'🔕':'🔔';document.getElementById('mute-btn').title=isMuted?'Unmute notifications':'Mute notifications';}

@@ -159,7 +159,7 @@ class ChatController extends Controller
         $message->load('sender', 'replyTo');
         Cache::forget("typing.{$currentUser->id}.to.{$receiver->id}");
         try { broadcast(new NewMessage($message))->toOthers(); } catch (\Exception $e) {}
-        $this->sendPushIfOffline($receiver, $currentUser, $message);
+        $this->sendPushNotification($receiver, $currentUser, $message);
         $currentUser->update(['last_seen' => now()]);
 
         return response()->json(['success' => true, 'message' => $this->formatMessage($message, $currentUser->id)]);
@@ -327,10 +327,8 @@ class ChatController extends Controller
         ];
     }
 
-    private function sendPushIfOffline(User $receiver, User $sender, Message $message): void
+    private function sendPushNotification(User $receiver, User $sender, Message $message): void
     {
-        $isOnline = $receiver->last_seen && $receiver->last_seen->diffInMinutes(now()) < 2;
-        if ($isOnline) return;
         $subscriptions = $receiver->pushSubscriptions;
         if ($subscriptions->isEmpty()) return;
 

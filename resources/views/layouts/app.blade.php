@@ -37,8 +37,8 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen">
 
     <!-- ── NAVBAR ─────────────────────────────────────────────────── -->
-    <nav class="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 shadow-lg">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
+    <nav class="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 shadow-lg" style="padding-top: env(safe-area-inset-top, 0px);">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16 sm:h-20">
 
             <!-- Logo (7-click trigger) -->
             <div id="app-logo" class="flex items-center gap-2 cursor-pointer select-none" title="{{ config('app.name') }}">

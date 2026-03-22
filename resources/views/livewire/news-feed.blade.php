@@ -56,40 +56,43 @@
         </div>
     </div>
     
-    <!-- Mobile Filter Form (Stacked) -->
-    <div class="sm:hidden bg-slate-950 border-b border-slate-800 px-4 py-3 z-20 relative w-full">
-        <div class="flex flex-col gap-2">
-            <div class="flex items-center justify-between mb-1">
-                <span class="text-xs text-slate-400 font-medium">Filters</span>
-                <div wire:loading class="text-brand-500">
-                    <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle><path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" class="opacity-75"></path></svg>
-                </div>
+    <!-- Mobile Filter Bar (Horizontal Chips) -->
+    <div class="sm:hidden bg-[#030712]/95 backdrop-blur-md border-b border-slate-800/80 z-20 relative w-full shadow-md">
+        <div class="flex items-center gap-2.5 overflow-x-auto hide-scroll px-4 py-2.5">
+            <div class="flex items-center gap-1.5 shrink-0 text-slate-500 font-bold text-[10px] uppercase tracking-wider mr-1 pr-3 border-r border-slate-800/80">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
             </div>
-            <div class="grid grid-cols-2 gap-2 text-xs">
-                <select wire:model.live="sortBy" class="bg-slate-900 border border-slate-800 text-slate-300 rounded-md px-2 py-2">
-                    <option value="">Sort: Relevant</option>
-                    <option value="publishedAt">Sort: Latest</option>
-                    <option value="popularity">Sort: Popular</option>
-                </select>
-                <select wire:model.live="from" class="bg-slate-900 border border-slate-800 text-slate-300 rounded-md px-2 py-2">
-                    <option value="">Time: Last 3 Days</option>
-                    <option value="today">Time: Today</option>
-                    <option value="week">Time: Week</option>
-                </select>
-                <select wire:model.live="country" class="bg-slate-900 border border-slate-800 text-slate-300 rounded-md px-2 py-2">
-                    <option value="">Region: Global</option>
-                    <option value="in">India</option>
-                    <option value="us">United States</option>
-                </select>
-                <select wire:model.live="source" class="bg-slate-900 border border-slate-800 text-slate-300 rounded-md px-2 py-2">
-                    <option value="">Source: Any</option>
-                    <option value="bbc-news">BBC</option>
-                    <option value="the-times-of-india">Times of India</option>
-                </select>
-            </div>
+            <select wire:model.live="sortBy" class="shrink-0 bg-slate-900 border border-slate-700/80 text-slate-300 rounded-full pl-3 pr-7 py-1.5 text-[11px] font-semibold focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none cursor-pointer appearance-none" style="background-image:url('data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2394a3b8%22 stroke-width=%222%22%3E%3Cpolyline points=%226 9 12 15 18 9%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 6px center;background-size:12px;">
+                <option value="">Sort</option>
+                <option value="publishedAt">Latest</option>
+                <option value="popularity">Popular</option>
+            </select>
+            <select wire:model.live="from" class="shrink-0 bg-slate-900 border border-slate-700/80 text-slate-300 rounded-full pl-3 pr-7 py-1.5 text-[11px] font-semibold focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none cursor-pointer appearance-none" style="background-image:url('data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2394a3b8%22 stroke-width=%222%22%3E%3Cpolyline points=%226 9 12 15 18 9%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 6px center;background-size:12px;">
+                <option value="">Time</option>
+                <option value="today">Today</option>
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+            </select>
+            <select wire:model.live="country" class="shrink-0 bg-slate-900 border border-slate-700/80 text-slate-300 rounded-full pl-3 pr-7 py-1.5 text-[11px] font-semibold focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none cursor-pointer appearance-none" style="background-image:url('data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2394a3b8%22 stroke-width=%222%22%3E%3Cpolyline points=%226 9 12 15 18 9%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 6px center;background-size:12px;">
+                <option value="">Region</option>
+                <option value="in">India</option>
+                <option value="us">US</option>
+                <option value="gb">UK</option>
+            </select>
+            <select wire:model.live="source" class="shrink-0 bg-slate-900 border border-slate-700/80 text-slate-300 rounded-full pl-3 pr-7 py-1.5 text-[11px] font-semibold focus:ring-1 focus:ring-brand-500 focus:border-brand-500 outline-none cursor-pointer appearance-none" style="background-image:url('data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2394a3b8%22 stroke-width=%222%22%3E%3Cpolyline points=%226 9 12 15 18 9%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 6px center;background-size:12px;">
+                <option value="">Source</option>
+                <option value="bbc-news">BBC</option>
+                <option value="cnn">CNN</option>
+                <option value="the-times-of-india">TOI</option>
+            </select>
             @if(!empty($country) || !empty($source) || !empty($from) || !empty($sortBy))
-            <button wire:click="$set('country', ''); $set('source', ''); $set('from', ''); $set('sortBy', '');" class="w-full text-center bg-brand-600/20 text-brand-400 py-1.5 rounded-md text-xs font-bold mt-1">Clear All Filters</button>
+            <button wire:click="$set('country', ''); $set('source', ''); $set('from', ''); $set('sortBy', '');" class="shrink-0 rounded-full w-6 h-6 bg-brand-500/20 text-brand-400 flex items-center justify-center hover:bg-brand-500 hover:text-white transition-colors cursor-pointer" title="Clear">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
             @endif
+        </div>
+        <div wire:loading class="absolute right-3 top-1/2 -translate-y-1/2 text-brand-500 pointer-events-none">
+            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"></circle><path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" class="opacity-75"></path></svg>
         </div>
     </div>
 

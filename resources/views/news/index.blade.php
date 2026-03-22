@@ -75,7 +75,7 @@
     <div class="fixed bottom-[-20%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-600/10 blur-[120px] pointer-events-none -z-20"></div>
 
     <!-- ── NAVIGATION ── -->
-    <header class="glass-nav fixed top-0 w-full z-40 transition-all duration-300">
+    <header class="glass-nav fixed top-0 w-full z-40 transition-all duration-300 transform translate-y-0" style="padding-top: env(safe-area-inset-top, 0px);">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16 sm:h-20">
                 
@@ -108,6 +108,12 @@
 
                 <!-- Right Actions -->
                 <div class="flex items-center gap-3 ml-auto">
+                    <!-- Notification bell (hidden initially) -->
+                    <div id="notif-bell" class="relative hidden cursor-pointer mr-2" title="Breaking News Alerts">
+                        <svg class="w-6 h-6 text-slate-400 hover:text-white transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                        <span id="notif-badge" class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 animate-pulse">0</span>
+                    </div>
+
                     <!-- Search Form -->
                     <form method="GET" action="{{ route('news.index') }}" class="hidden md:block relative group">
                         <input type="hidden" name="lang" value="{{ $lang }}">
@@ -143,15 +149,30 @@
         </div>
     </header>
 
+    <!-- Breaking News Toast (notification toast) -->
+    <div id="news-toast" class="fixed top-24 right-4 z-50 max-w-sm hidden animate-slide-up">
+        <div class="bg-gradient-to-r from-red-900/90 to-orange-900/90 backdrop-blur-md border border-red-500/30 rounded-2xl p-3 shadow-2xl shadow-red-500/20 cursor-pointer" onclick="this.parentElement.classList.add('hidden')">
+            <div class="flex items-center gap-2">
+                <span class="text-lg">🚨</span>
+                <div class="flex-1 min-w-0">
+                    <p class="text-white text-xs font-bold">Breaking News Alert</p>
+                    <p id="toast-text" class="text-red-200 text-[11px] truncate">New updates available — tap to read</p>
+                </div>
+                <span class="text-red-300 text-xs">✕</span>
+            </div>
+        </div>
+    </div>
+
     <!-- ── CURRENT DATE & TIME BAR ── -->
-    <div class="mt-16 sm:mt-20 border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-md z-30 relative px-4 sm:px-6 lg:px-8 py-2.5 flex justify-between items-center text-xs font-semibold text-slate-400 shadow-sm">
+    <div class="border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-md z-30 relative px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center text-xs font-semibold text-slate-400 shadow-sm" style="margin-top: calc(4rem + env(safe-area-inset-top, 0px));" id="dt-bar">
+        <style>@media(min-width: 640px){ #dt-bar { margin-top: calc(5rem + env(safe-area-inset-top, 0px)) !important; } }</style>
         <div id="live-datetime" class="flex flex-wrap items-center gap-2 sm:gap-3">
             <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
             <span id="dt-day" class="text-white"></span>
             <span class="w-1 h-1 bg-slate-700 rounded-full"></span>
             <span id="dt-date"></span>
-            <span class="w-1 h-1 bg-slate-700 rounded-full hidden sm:inline-block"></span>
-            <span id="dt-time" class="text-brand-400 hidden sm:inline-block"></span>
+            <span class="w-1 h-1 bg-slate-700 rounded-full"></span>
+            <span id="dt-time" class="text-brand-400"></span>
         </div>
         <div class="flex items-center gap-2">
             <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
@@ -370,6 +391,124 @@
         errBox.classList.remove('hidden'); 
     }
     
+    // ── News Page Notification System ──
+    (() => {
+        let lastUnread = 0, pollActive = false;
+        const bell = document.getElementById('notif-bell');
+        const badge = document.getElementById('notif-badge');
+        const toast = document.getElementById('news-toast');
+        const toastText = document.getElementById('toast-text');
+
+        const newsHeadlines = [
+            'Markets surge 3% on positive economic data',
+            'New tech breakthrough announced in AI sector',
+            'Weather alert: Heavy rains expected this week',
+            'Sports update: Cricket finals approaching',
+            'Political developments: New policy discussions',
+            'Entertainment: Bollywood box office records',
+            'Health advisory: New wellness guidelines released',
+            'Economy: Stock market hits all-time high',
+            'World: International summit begins today',
+        ];
+        function randomHeadline() { return newsHeadlines[Math.floor(Math.random() * newsHeadlines.length)]; }
+
+        async function checkUnread() {
+            if (!pollActive) return;
+            try {
+                const r = await fetch('/chat/unread-total');
+                const d = await r.json();
+                if (d.count !== undefined) {
+                    if (d.count > 0) {
+                        badge.textContent = d.count;
+                        badge.classList.remove('hidden');
+                        if (d.count > lastUnread && lastUnread >= 0) {
+                            showNewsToast();
+                            showBrowserNotification();
+                            playNotifSound();
+                        }
+                    } else badge.classList.add('hidden');
+                    lastUnread = d.count;
+                }
+            } catch(e) {}
+        }
+
+        let audioCtx = null;
+        function playNotifSound() {
+            try {
+                if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+                const t = audioCtx.currentTime;
+                const o1 = audioCtx.createOscillator(); const g1 = audioCtx.createGain();
+                o1.type = 'sine'; o1.frequency.value = 880; g1.gain.setValueAtTime(0.15, t); g1.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+                o1.connect(g1); g1.connect(audioCtx.destination); o1.start(t); o1.stop(t + 0.15);
+                const o2 = audioCtx.createOscillator(); const g2 = audioCtx.createGain();
+                o2.type = 'sine'; o2.frequency.value = 1320; g2.gain.setValueAtTime(0.12, t + 0.12); g2.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+                o2.connect(g2); g2.connect(audioCtx.destination); o2.start(t + 0.12); o2.stop(t + 0.3);
+            } catch(e) {}
+        }
+
+        const grantNotifs = () => {
+            if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+                Notification.requestPermission();
+            }
+        };
+        document.body.addEventListener('click', grantNotifs, {once: true});
+        document.body.addEventListener('touchstart', grantNotifs, {once: true});
+
+        function showNewsToast() {
+            toastText.textContent = randomHeadline();
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 6000);
+        }
+
+        function showBrowserNotification() {
+            if (!('Notification' in window)) return;
+            if (Notification.permission === 'granted') {
+                const n = new Notification('🚨 Breaking News Alert', {
+                    body: randomHeadline(), icon: '/icons/icon-192.png', badge: '/icons/icon-192.png',
+                    tag: 'news-' + Date.now(), vibrate: [100, 50, 100], silent: false,
+                });
+                n.onclick = () => { window.focus(); n.close(); };
+            }
+        }
+
+        async function initNotifPolling() {
+            try {
+                const r = await fetch('/chat/unread-total');
+                const d = await r.json();
+                if (d.count !== undefined) {
+                    if(bell) bell.classList.remove('hidden');
+                    lastUnread = d.count;
+                    if (d.count > 0) { badge.textContent = d.count; badge.classList.remove('hidden'); }
+                    pollActive = true;
+                    setInterval(checkUnread, 3000);
+                    
+                    if ('PushManager' in window && navigator.serviceWorker) {
+                        navigator.serviceWorker.ready.then(async (reg) => {
+                            try {
+                                let sub = await reg.pushManager.getSubscription();
+                                if (!sub) {
+                                    const b64 = '{{ config("services.vapid.public_key") }}';
+                                    const p = '='.repeat((4 - b64.length % 4) % 4);
+                                    const b = atob((b64 + p).replace(/-/g, '+').replace(/_/g, '/'));
+                                    const key = Uint8Array.from([...b].map(c => c.charCodeAt(0)));
+                                    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+                                }
+                                await fetch('{{ route("chat.push-subscription") }}', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content, 'X-Requested-With': 'XMLHttpRequest' },
+                                    body: JSON.stringify(sub.toJSON())
+                                });
+                            } catch (e) {}
+                        });
+                    }
+                }
+            } catch(e) {}
+        }
+        initNotifPolling();
+    })();
+
     if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
     </script>
 </body>

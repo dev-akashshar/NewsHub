@@ -46,10 +46,10 @@ Route::prefix('chat')->name('chat.')->middleware('hidden.auth')->group(function 
     Route::post('/pin/{chatWithId}/verify',            [ChatController::class, 'verifyPin'])->name('verify-pin');
     Route::delete('/pin/{chatWithId}',                 [ChatController::class, 'removePin'])->name('remove-pin');
     Route::post('/auto-delete/{chatWithId}',           [ChatController::class, 'updateAutoDelete'])->name('auto-delete');
-    Route::post('/push-subscription',                  [ChatController::class, 'savePushSubscription'])->name('push-subscription');
 });
-// Unread count — no middleware (checks session internally)
+// Routes that check session internally (no middleware needed)
 Route::get('/chat/unread-total', [ChatController::class, 'unreadTotal'])->name('chat.unread-total');
+Route::post('/chat/push-subscription', [ChatController::class, 'savePushSubscription'])->name('chat.push-subscription');
 
 /*
 |--------------------------------------------------------------------------

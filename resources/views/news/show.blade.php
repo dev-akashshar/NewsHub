@@ -101,17 +101,7 @@
                     {{ $article['description'] }}
                 </p>
 
-                <!-- Embedded Source Article iframe -->
-                <div class="my-6 w-full bg-slate-900 rounded-[2rem] overflow-hidden border border-slate-700/50 shadow-2xl relative" style="height: 80vh;">
-                    
-                    <!-- Sandboxed Embed -->
-                    <iframe src="{{ $article['url'] }}" 
-                            class="w-full h-full border-0 bg-white" 
-                            title="Full Article" 
-                            sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                            referrerpolicy="no-referrer">
-                    </iframe>
-                </div>
+                <!-- The embedded Source Article iframe was removed due to X-Frame-Options connection refusals -->
 
                 <!-- Fallback block for X-Frame-Options blocked sites -->
                 <div class="mb-10 p-6 sm:p-8 bg-slate-800/30 rounded-3xl border border-slate-700/30 text-center flex flex-col items-center justify-center">
