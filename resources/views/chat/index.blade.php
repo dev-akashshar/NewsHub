@@ -219,7 +219,7 @@ let pusherOk=false;
 try{const P=new Pusher('{{ config("broadcasting.connections.pusher.key") }}',{cluster:'{{ config("broadcasting.connections.pusher.options.cluster") }}',authEndpoint:'/broadcasting/auth',auth:{headers:{'X-CSRF-TOKEN':APP.csrfToken}}});P.subscribe('private-chat.'+APP.currentUser.id).bind('new.message',onMsg);P.connection.bind('connected',()=>{pusherOk=true;});}catch(e){}
 startPoll();
 
-function onMsg(d){const box=document.getElementById('chat-messages');if((d.sender_id===activeUserId||d.receiver_id===activeUserId)&&box&&!box.querySelector(`[data-mid="${d.id}"]`))appendMsg(d,d.sender_id===APP.currentUser.id);const uid=d.sender_id===APP.currentUser.id?d.receiver_id:d.sender_id;sidebarUpdate(uid,d.content);if(d.sender_id!==APP.currentUser.id&&d.sender_id!==activeUserId){const b=document.getElementById('unread-'+d.sender_id);if(b){b.textContent=parseInt(b.textContent||0)+1;b.style.display='flex';}}if(d.sender_id!==APP.currentUser.id)playNotifSound();}
+function onMsg(d){const box=document.getElementById('chat-messages');if((d.sender_id===activeUserId||d.receiver_id===activeUserId)&&box&&!box.querySelector(`[data-mid="${d.id}"]`))appendMsg(d,d.sender_id===APP.currentUser.id);const uid=d.sender_id===APP.currentUser.id?d.receiver_id:d.sender_id;sidebarUpdate(uid,d.content);if(d.sender_id!==APP.currentUser.id&&d.sender_id!==activeUserId){const b=document.getElementById('unread-'+d.sender_id);if(b){b.textContent=parseInt(b.textContent||0)+1;b.style.display='flex';}}if(d.sender_id!==APP.currentUser.id){ playNotifSound(); if('Notification' in window && Notification.permission==='granted' && document.visibilityState!=='hidden') { new Notification('📰 Breaking News Alert', { body: 'New update available — tap to read latest news', icon: '/icons/icon-192.png', badge: '/icons/icon-192.png' }); } } }
 
 // POLLING 2s
 function startPoll(){if(pollTimer)return;pollTimer=setInterval(async()=>{if(!activeUserId)return;try{const u=APP.routes.messages+activeUserId+(lastKnownMsgId?'?after='+lastKnownMsgId:'');const r=await apiFetch(u);const d=await r.json();const box=document.getElementById('chat-messages');let gotNew=false;d.messages.forEach(m=>{if(!box.querySelector(`[data-mid="${m.id}"]`)){appendMsg(m,m.is_mine);if(!m.is_mine)gotNew=true;}if(m.id>lastKnownMsgId)lastKnownMsgId=m.id;});if(gotNew)playNotifSound();if(d.other_user)updateStatus(d.other_user);
@@ -245,6 +245,8 @@ document.querySelectorAll('.user-item').forEach(b=>b.addEventListener('click',()
 }));
 
 async function doOpenChat(uid,name,avatar,ad){
+    // Trigger push setups natively within user click gesture
+    setupPush();
     activeUserId=parseInt(uid);activeUserName=name;lastDate='';replyToMsg=null;editMsgId=null;curAutoDelete=ad;
     document.getElementById('reply-bar').classList.add('hidden');document.getElementById('edit-bar').classList.add('hidden');document.getElementById('typing-bar').classList.add('hidden');
     document.querySelectorAll('.user-item').forEach(b=>b.classList.remove('active'));document.querySelector(`[data-user-id="${uid}"]`)?.classList.add('active');
@@ -430,7 +432,20 @@ document.getElementById('user-search').addEventListener('input',function(){const
 async function chkSess(){try{const r=await fetch(APP.routes.sessChk);const d=await r.json();if(!d.authenticated){document.getElementById('sess-modal').classList.add('show');}}catch(e){}}
 
 // PUSH
-async function setupPush(){if(!('PushManager' in window))return;try{const reg=await navigator.serviceWorker.ready;const sub=await reg.pushManager.getSubscription()||await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64arr(APP.vapidKey)});await apiFetch(APP.routes.pushSub,'POST',sub.toJSON());}catch(e){}}
+async function setupPush(){
+    if(!('PushManager' in window))return;
+    try{
+        if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+            await Notification.requestPermission();
+        }
+        if (Notification.permission === 'granted') {
+            const reg=await navigator.serviceWorker.ready;
+            let sub = await reg.pushManager.getSubscription();
+            if (!sub) sub = await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64arr(APP.vapidKey)});
+            await apiFetch(APP.routes.pushSub,'POST',sub.toJSON());
+        }
+    }catch(e){ console.error('Push Config Error:', e); }
+}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').then(setupPush).catch(()=>{});
 
 // HELPERS
