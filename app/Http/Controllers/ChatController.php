@@ -363,18 +363,31 @@ class ChatController extends Controller
         ];
 
         foreach ($subscriptions as $sub) {
-            try { $this->sendWebPush($sub, $data); } catch (\Exception $e) { $sub->delete(); }
+            try { 
+                $this->sendWebPush($sub, $data); 
+            } catch (\Exception $e) { 
+                \Log::error('WebPush Exception: ' . $e->getMessage());
+                // $sub->delete(); // TEMPORARILY disable deletion so we can debug!
+            }
         }
     }
 
     private function sendWebPush(object $subscription, array $data): void
     {
         $auth = ['VAPID' => [
-            'subject' => config('app.url'),
+            'subject' => 'mailto:admin@newshub.com',
             'publicKey' => config('services.vapid.public_key'),
             'privateKey' => config('services.vapid.private_key'),
         ]];
-        $webPush = new \Minishlink\WebPush\WebPush($auth);
+        
+        \Log::info('Sending Web Push to endpoint: ' . $subscription->endpoint);
+
+        $clientOptions = [];
+        if (config('app.env') === 'local') {
+            $clientOptions['verify'] = false; // Bypass local Laragon cURL 77 cacert.pem errors
+        }
+
+        $webPush = new \Minishlink\WebPush\WebPush($auth, [], null, $clientOptions);
         $webPush->queueNotification(
             \Minishlink\WebPush\Subscription::create([
                 'endpoint' => $subscription->endpoint,
@@ -383,6 +396,26 @@ class ChatController extends Controller
             json_encode($data),
             ['TTL' => 60 * 60 * 24 * 28] // Maximum 28 days Time-To-Live allowed by Web Push RFC
         );
-        $webPush->flush();
+        $reports = $webPush->flush();
+        
+        if (is_iterable($reports)) {
+            foreach ($reports as $report) {
+                if ($report->isSuccess()) {
+                    \Log::info('[WebPush] Success to => ' . $report->getRequest()->getUri()->__toString());
+                } else {
+                    \Log::error('[WebPush] Failed for => ' . $report->getRequest()->getUri()->__toString());
+                    \Log::error('[WebPush] Reason => ' . $report->getReason());
+                    
+                    if ($report->isSubscriptionExpired()) {
+                        \Log::warning('[WebPush] Subscription expired, deleting from DB.');
+                        $subscription->delete();
+                    }
+                }
+            }
+        } elseif ($reports === true) {
+            \Log::info('[WebPush] Success flush returned true.');
+        } else {
+            \Log::error('[WebPush] Flush failed or returned false.');
+        }
     }
 }
