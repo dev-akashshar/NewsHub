@@ -381,7 +381,7 @@ class ChatController extends Controller
                 'keys' => ['p256dh' => $subscription->public_key, 'auth' => $subscription->auth_token],
             ]),
             json_encode($data),
-            ['TTL' => 60 * 60 * 24 * 30] // Maximum 30 days Time-To-Live for extreme offline resilience
+            ['TTL' => 60 * 60 * 24 * 28] // Maximum 28 days Time-To-Live allowed by Web Push RFC
         );
         $webPush->flush();
     }
