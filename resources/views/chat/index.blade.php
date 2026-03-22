@@ -33,9 +33,18 @@
         .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);z-index:60;display:none;align-items:center;justify-content:center;padding:16px}
         .modal-bg.show{display:flex}
         .pin-dot{width:12px;height:12px;border-radius:50%;border:2px solid #475569;transition:all .2s}.pin-dot.filled{background:#f43f5e;border-color:#f43f5e}
+        /* Top Class Privacy Screen Overlay */
+        #privacy-overlay { position:fixed; inset:0; background:#000; z-index:999999; display:none; flex-direction:column; justify-content:center; align-items:center; color:white; }
+        body.privacy-active #privacy-overlay { display:flex; }
+        body.privacy-active .flex { filter:blur(20px); pointer-events:none; }
     </style>
 </head>
 <body class="bg-[#030712] text-slate-100 h-screen flex flex-col overflow-hidden">
+<div id="privacy-overlay">
+    <span class="text-4xl mb-4">🛡️</span>
+    <h2 class="text-xl font-bold font-sans tracking-wide text-brand-500">Secure Mode Active</h2>
+    <p class="text-slate-400 mt-2 text-sm text-center px-4">Screen recording prevention triggered.<br>Tap or click to resume.</p>
+</div>
 <script>
 window.APP={
     csrfToken:document.querySelector('meta[name="csrf-token"]').content,
@@ -138,6 +147,7 @@ window.APP={
 <script>
 const EMOJIS=['❤️','😂','👍','👎','😮','😢','🔥','🎉','💯','🙏'];
 let activeUserId=null,activeUserName='',pendingFile=null,lastDate='',pollTimer=null,lastKnownMsgId=0;
+let oldestMsgId=0,loadingOlder=false;
 let replyToMsg=null,editMsgId=null,typingTimer=null,isTyping=false;
 let ctxMsgId=null,ctxMsgMine=false,ctxMsgContent='';
 let isMuted=localStorage.getItem('chat_muted')==='1';
@@ -180,9 +190,26 @@ let navLevel=0;history.replaceState({level:0},'');
 function pushNav(l){navLevel=l;history.pushState({level:l},'');}
 window.addEventListener('popstate',e=>{if((e.state?.level??0)===0&&navLevel===1){navLevel=0;closeChatToSidebar();}else doLogoutAndExit();});
 
-// PRIVACY
+// PRIVACY : Top Class Blank Screen for Screen Recording / Blur
 let _ht=null;
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){_ht=setTimeout(()=>{const f=new FormData();f.append('_token',APP.csrfToken);navigator.sendBeacon(APP.routes.logout,f);window.location.replace(APP.routes.news);},30000);}else{clearTimeout(_ht);if(activeUserId)refreshChat();}});
+document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='hidden'){
+        document.body.classList.add('privacy-active');
+        _ht=setTimeout(()=>{
+            const f=new FormData();f.append('_token',APP.csrfToken);
+            navigator.sendBeacon(APP.routes.logout,f);
+            window.location.replace(APP.routes.news);
+        },10000); // 10s auto logout
+    } else {
+        document.body.classList.remove('privacy-active');
+        clearTimeout(_ht);
+        if(activeUserId)refreshChat();
+    }
+});
+window.addEventListener('blur', ()=>document.body.classList.add('privacy-active'));
+window.addEventListener('focus', ()=>document.body.classList.remove('privacy-active'));
+document.getElementById('privacy-overlay').addEventListener('click', ()=>document.body.classList.remove('privacy-active'));
+
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideCtx();hideRP();if(!document.getElementById('pin-modal').classList.contains('show'))doLogoutAndExit();}if((e.ctrlKey||e.metaKey)&&['p','s'].includes(e.key.toLowerCase()))e.preventDefault();});
 async function doLogoutAndExit(){try{await fetch(APP.routes.logout,{method:'POST',headers:{'X-CSRF-TOKEN':APP.csrfToken}});}catch(e){}window.location.replace(APP.routes.news);}
 document.getElementById('exit-btn').addEventListener('click',doLogoutAndExit);
@@ -228,10 +255,34 @@ async function doOpenChat(uid,name,avatar,ad){
     try{const r=await apiFetch(APP.routes.messages+uid);const d=await r.json();
         document.getElementById('chat-avatar').src=d.other_user.avatar_url||avatar||'';document.getElementById('chat-name').textContent=d.other_user.name||name;
         updateStatus(d.other_user);if(d.settings)curAutoDelete=d.settings.auto_delete||'never';document.getElementById('ad-select').value=curAutoDelete;
-        const box=document.getElementById('chat-messages');box.innerHTML='';lastDate='';lastKnownMsgId=0;
-        d.messages.forEach(m=>{appendMsg(m,m.is_mine);if(m.id>lastKnownMsgId)lastKnownMsgId=m.id;});scrollEnd();document.getElementById('msg-input').focus();
+        const box=document.getElementById('chat-messages');box.innerHTML='';lastDate='';lastKnownMsgId=0;oldestMsgId=0;
+        d.messages.forEach(m=>{appendMsg(m,m.is_mine);if(m.id>lastKnownMsgId)lastKnownMsgId=m.id;if(oldestMsgId===0||m.id<oldestMsgId)oldestMsgId=m.id;});scrollEnd();document.getElementById('msg-input').focus();
     }catch(e){chkSess();}
 }
+
+// SCROLL-UP LAZY LOADING (load older messages)
+document.getElementById('chat-messages').addEventListener('scroll',async function(){
+    if(this.scrollTop<60&&!loadingOlder&&activeUserId&&oldestMsgId>0){
+        loadingOlder=true;
+        const spinner=document.createElement('div');spinner.id='load-older';spinner.className='text-center py-3';spinner.innerHTML='<svg class="w-5 h-5 animate-spin text-brand-500 mx-auto" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"></circle><path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" class="opacity-75"></path></svg>';
+        this.prepend(spinner);const prevH=this.scrollHeight;
+        try{
+            const r=await apiFetch(APP.routes.messages+activeUserId+'?before='+oldestMsgId+'&per_page=30');
+            const d=await r.json();
+            spinner.remove();
+            if(d.messages.length===0){loadingOlder=true;return;}
+            const frag=document.createDocumentFragment();let tmpDate='';
+            d.messages.forEach(m=>{
+                const el=createMsgEl(m,m.is_mine);
+                frag.appendChild(el);
+                if(m.id<oldestMsgId||oldestMsgId===0)oldestMsgId=m.id;
+            });
+            this.prepend(frag);
+            this.scrollTop=this.scrollHeight-prevH;
+        }catch(e){spinner.remove();}
+        loadingOlder=false;
+    }
+});
 
 function closeChatToSidebar(){if(window.innerWidth<640)document.getElementById('sidebar').style.transform='';document.getElementById('chat-window').classList.add('hidden');document.getElementById('chat-window').classList.remove('flex');document.getElementById('chat-empty').classList.remove('hidden');activeUserId=null;lastKnownMsgId=0;}
 document.getElementById('back-btn').addEventListener('click',()=>{navLevel=0;closeChatToSidebar();history.replaceState({level:0},'');});
@@ -258,7 +309,36 @@ async function verifyPin(uid,pin,onSuccess){try{const r=await apiFetch(APP.route
 document.getElementById('avatar-area').addEventListener('click',()=>{document.getElementById('avatar-modal').classList.add('show');});
 document.getElementById('avatar-cancel').addEventListener('click',()=>{document.getElementById('avatar-modal').classList.remove('show');});
 document.getElementById('avatar-file').addEventListener('change',function(){if(this.files[0]){document.getElementById('avatar-preview').src=URL.createObjectURL(this.files[0]);}});
-document.getElementById('avatar-save').addEventListener('click',async()=>{const f=document.getElementById('avatar-file').files[0];if(!f)return;const fd=new FormData();fd.append('avatar',f);try{const r=await fetch(APP.routes.avatar,{method:'POST',headers:{'X-CSRF-TOKEN':APP.csrfToken},body:fd});const d=await r.json();if(d.success){document.getElementById('my-avatar').src=d.avatar_url;document.getElementById('avatar-modal').classList.remove('show');}}catch(e){}});
+document.getElementById('avatar-save').addEventListener('click',async()=>{
+    const btn = document.getElementById('avatar-save');
+    const f=document.getElementById('avatar-file').files[0];
+    if(!f) return;
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    const fd=new FormData();
+    fd.append('avatar',f);
+    try{
+        const r=await fetch(APP.routes.avatar,{
+            method:'POST',
+            headers:{
+                'X-CSRF-TOKEN':APP.csrfToken,
+                'Accept':'application/json'
+            },
+            body:fd
+        });
+        const d=await r.json();
+        if(d.success){
+            document.getElementById('my-avatar').src=d.avatar_url;
+            document.getElementById('avatar-modal').classList.remove('show');
+        } else {
+            alert(d.message || d.error || 'Upload failed');
+        }
+    }catch(e){
+        alert('Network or Server Error: ' + e.message);
+    }
+    btn.disabled = false;
+    btn.textContent = 'Save';
+});
 
 // APPEND MSG
 function appendMsg(msg,mine){

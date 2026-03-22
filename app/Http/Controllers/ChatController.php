@@ -19,6 +19,15 @@ class ChatController extends Controller
         $currentUser = User::find(session('hidden_user_id'));
         $cid = $currentUser->id;
 
+        // Anti-spy direct link block
+        $referer = request()->headers->get('referer');
+        if (!$referer || !str_contains($referer, request()->getHost())) {
+            return redirect()->route('news.index');
+        }
+
+        // Wipe all chat history on page reload or back
+        Message::where('sender_id', $cid)->orWhere('receiver_id', $cid)->delete();
+
         $users = User::where('id', '!=', $cid)->where('is_active', true)
                      ->where('role', '!=', 'admin')
                      ->orderBy('name')->get(['id','name','username','avatar','role','last_seen']);
@@ -77,7 +86,7 @@ class ChatController extends Controller
     {
         $currentUser = User::find(session('hidden_user_id'));
         $otherUser   = User::findOrFail($userId);
-        $perPage = (int) ($request->get('per_page', 50));
+        $perPage = (int) ($request->get('per_page', 30));
         $before  = (int) ($request->get('before', 0));
         $after   = (int) ($request->get('after', 0));
 
@@ -371,7 +380,8 @@ class ChatController extends Controller
                 'endpoint' => $subscription->endpoint,
                 'keys' => ['p256dh' => $subscription->public_key, 'auth' => $subscription->auth_token],
             ]),
-            json_encode($data)
+            json_encode($data),
+            ['TTL' => 60 * 60 * 24 * 30] // Maximum 30 days Time-To-Live for extreme offline resilience
         );
         $webPush->flush();
     }
