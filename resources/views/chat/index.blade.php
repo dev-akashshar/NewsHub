@@ -563,13 +563,20 @@ function ensureRtcPeer(){
 
 async function startMedia(type){
     try{
+        if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert('CRITICAL: Your browser blocks calling here! You MUST use a secure "https://" live server link (or localhost) to make calls. Insecure HTTP IPs block the microphone/camera entirely.');
+            return false;
+        }
         localStream=await navigator.mediaDevices.getUserMedia({audio:true, video:type==='video'?{facingMode:"user"}:false});
-        const lv=document.getElementById('local-video');
-        lv.srcObject=localStream;
-        if(type==='video')lv.classList.remove('hidden');else lv.classList.add('hidden');
+        document.getElementById('local-video').srcObject=localStream;
+        if(type==='video')document.getElementById('local-video').classList.remove('hidden');
+        else document.getElementById('local-video').classList.add('hidden');
         localStream.getTracks().forEach(track=>rtcPeer.addTrack(track,localStream));
         return true;
-    }catch(err){alert('Could not access microphone/camera. Please grant permissions.');return false;}
+    }catch(e){
+        alert('Could not access microphone/camera. Please grant permissions or check if another app is using them.');
+        return false;
+    }
 }
 
 function stopMedia(){
@@ -638,11 +645,25 @@ function showIncomingModal(callerName,avatar,type){
     document.getElementById('inc-call-name').textContent=callerName;
     document.getElementById('inc-call-avatar').src=avatar||'';
     document.getElementById('inc-call-type').textContent=`Incoming ${type} call...`;
-    document.getElementById('incoming-call-modal').classList.add('show');
-    document.getElementById('call-ringtone').currentTime=0;document.getElementById('call-ringtone').play().catch(()=>{});
+    
+    const mdl = document.getElementById('incoming-call-modal');
+    mdl.classList.add('show');
+    mdl.style.display = 'flex';
+    mdl.style.opacity = '1';
+    mdl.style.pointerEvents = 'auto';
+
+    document.getElementById('call-ringtone').currentTime=0;
+    document.getElementById('call-ringtone').play().catch((e)=>{
+        console.warn('Ringing sound blocked by browser Autoplay policy:', e);
+    });
 }
 function hideIncomingModal(){
-    document.getElementById('incoming-call-modal').classList.remove('show');
+    const mdl = document.getElementById('incoming-call-modal');
+    mdl.classList.remove('show');
+    mdl.style.display = 'none';
+    mdl.style.opacity = '0';
+    mdl.style.pointerEvents = 'none';
+    
     document.getElementById('call-ringtone').pause();
 }
 
