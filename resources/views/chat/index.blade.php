@@ -39,7 +39,7 @@
         body.privacy-active .flex { filter:blur(20px); pointer-events:none; }
     </style>
 </head>
-<body class="bg-[#030712] text-slate-100 h-screen flex flex-col overflow-hidden">
+<body class="bg-[#030712] text-slate-100 h-[100dvh] flex flex-col overflow-hidden">
 <div id="privacy-overlay">
     <span class="text-4xl mb-4">🛡️</span>
     <h2 class="text-xl font-bold font-sans tracking-wide text-brand-500">Secure Mode Active</h2>
@@ -211,13 +211,26 @@ document.getElementById('exit-btn').addEventListener('click',doLogoutAndExit);
 
 // PUSHER
 let pusherOk=false;
+let typingHideTimer=null;
+function onTyping(d){
+    if(activeUserId===d.sender_id){
+        const tb=document.getElementById('typing-bar'), tl=document.getElementById('typing-label'), inp=document.getElementById('msg-input');
+        tb.classList.remove('hidden'); tl.textContent = activeUserName+' is typing…';
+        if(inp)inp.placeholder = activeUserName+' is typing…';
+        clearTimeout(typingHideTimer);
+        typingHideTimer = setTimeout(() => {
+            tb.classList.add('hidden');
+            if(inp)inp.placeholder='Message…';
+        }, 3000);
+    }
+}
 try{
     const P=new Pusher('{{ config("broadcasting.connections.pusher.key") }}',{
         cluster:'{{ config("broadcasting.connections.pusher.options.cluster") }}',
         authEndpoint:'/chat/pusher/auth', // Point to our custom endpoint
         auth:{headers:{'X-CSRF-TOKEN':APP.csrfToken}}
     });
-    P.subscribe('private-chat.'+APP.currentUser.id).bind('new.message',onMsg);
+    P.subscribe('private-chat.'+APP.currentUser.id).bind('new.message',onMsg).bind('typing',onTyping);
     P.connection.bind('connected',()=>{pusherOk=true;});
 }catch(e){}
 // Polling removed to rely solely on Pusher. WebSockets handle it gracefully.

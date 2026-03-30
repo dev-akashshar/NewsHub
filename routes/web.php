@@ -103,4 +103,4 @@ Route::post('/chat/pusher/auth', function (\Illuminate\Http\Request $request) {
         }
     }
     abort(403);
-})->middleware('web');
+})->middleware('web')->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);

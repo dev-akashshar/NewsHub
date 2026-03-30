@@ -214,6 +214,7 @@ class ChatController extends Controller
         $senderId = session('hidden_user_id');
         Cache::put("typing.{$senderId}.to.{$userId}", true, 4);
         User::where('id', $senderId)->update(['last_seen' => now()]);
+        try { broadcast(new \App\Events\Typing($senderId, $userId))->toOthers(); } catch (\Exception $e) {}
         return response()->json(['ok' => true]);
     }
 
