@@ -83,7 +83,7 @@ window.APP={
         <button class="user-item w-full flex items-center gap-2.5 px-2.5 py-3 rounded-xl transition-all text-left border-l-2 border-transparent slide-in" data-user-id="{{ $u['id'] }}" data-name="{{ $u['name'] }}" data-avatar="{{ $u['avatar_url'] }}" data-has-pin="{{ $u['has_pin']?'1':'0' }}" data-auto-delete="{{ $u['auto_delete'] }}" style="animation-delay:{{ $loop->index*30 }}ms">
             <div class="relative flex-shrink-0"><img src="{{ $u['avatar_url'] }}" class="w-11 h-11 rounded-2xl object-cover" alt=""><span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0a0f1a] bg-slate-700 transition-colors" id="status-{{ $u['id'] }}"></span></div>
             <div class="flex-1 min-w-0">
-                <div class="flex items-center justify-between"><p class="text-white text-[13px] font-semibold truncate">{{ $u['name'] }}@if($u['has_pin']) 🔐@endif</p><span class="text-slate-600 text-[10px] ml-1.5 flex-shrink-0">{{ $u['last_msg_at'] ?? '' }}</span></div>
+                <div class="flex items-center justify-between"><p class="text-white text-[13px] font-semibold truncate">{{ $u['name'] }}<span id="pin-icon-{{ $u['id'] }}">@if($u['has_pin']) 🔐@endif</span></p><span class="text-slate-600 text-[10px] ml-1.5 flex-shrink-0">{{ $u['last_msg_at'] ?? '' }}</span></div>
                 <p class="text-slate-500 text-xs truncate mt-0.5" id="sidebar-msg-{{ $u['id'] }}">{{ $u['last_msg'] ?? 'Tap to chat' }}</p>
             </div>
             <span class="unread-badge hidden min-w-[18px] h-[18px] bg-brand-500 text-white text-[10px] font-bold rounded-full items-center justify-center px-1 shadow-lg shadow-brand-500/30 flex-shrink-0" id="unread-{{ $u['id'] }}" style="{{ ($u['unread']??0)>0?'display:flex':'' }}">{{ $u['unread']??0 }}</span>
@@ -106,7 +106,7 @@ window.APP={
             <div class="flex-1 min-w-0"><p id="chat-name" class="text-white text-sm font-bold truncate"></p><p id="chat-status" class="text-slate-500 text-[11px] font-medium"></p></div>
             <div class="flex items-center gap-1">
                 <select id="ad-select" class="bg-slate-800/60 border border-slate-700/40 text-[10px] text-slate-400 rounded-lg px-1.5 py-1 focus:outline-none cursor-pointer" title="Auto-delete">
-                    <option value="never">Never</option><option value="immediate">Instant</option><option value="5min">5 min</option><option value="seen">After Seen</option><option value="1day">1 day</option><option value="7day">7 days</option>
+                    <option value="seen" selected>After Seen</option><option value="never">Never</option><option value="immediate">Instant</option><option value="5min">5 min</option><option value="1day">1 day</option><option value="7day">7 days</option>
                 </select>
                 <button id="pin-toggle-btn" class="w-7 h-7 rounded-lg bg-slate-800/40 text-slate-600 hover:text-amber-400 flex items-center justify-center transition" title="Set PIN">🔐</button>
             </div>
@@ -178,7 +178,7 @@ document.body.addEventListener('touchstart', grantNotifs, {once: true});
 function updateMuteUI(){document.getElementById('mute-btn').textContent=isMuted?'🔕':'🔔';document.getElementById('mute-btn').title=isMuted?'Unmute notifications':'Mute notifications';}
 updateMuteUI();
 document.getElementById('mute-btn').addEventListener('click',()=>{isMuted=!isMuted;localStorage.setItem('chat_muted',isMuted?'1':'0');updateMuteUI();});
-let pinCallback=null,curAutoDelete='never';
+let pinCallback=null,curAutoDelete='seen';
 
 // NAV
 let navLevel=0;history.replaceState({level:0},'');
@@ -211,16 +211,33 @@ document.getElementById('exit-btn').addEventListener('click',doLogoutAndExit);
 
 // PUSHER
 let pusherOk=false;
-try{const P=new Pusher('{{ config("broadcasting.connections.pusher.key") }}',{cluster:'{{ config("broadcasting.connections.pusher.options.cluster") }}',authEndpoint:'/broadcasting/auth',auth:{headers:{'X-CSRF-TOKEN':APP.csrfToken}}});P.subscribe('private-chat.'+APP.currentUser.id).bind('new.message',onMsg);P.connection.bind('connected',()=>{pusherOk=true;});}catch(e){}
-startPoll();
+try{
+    const P=new Pusher('{{ config("broadcasting.connections.pusher.key") }}',{
+        cluster:'{{ config("broadcasting.connections.pusher.options.cluster") }}',
+        authEndpoint:'/chat/pusher/auth', // Point to our custom endpoint
+        auth:{headers:{'X-CSRF-TOKEN':APP.csrfToken}}
+    });
+    P.subscribe('private-chat.'+APP.currentUser.id).bind('new.message',onMsg);
+    P.connection.bind('connected',()=>{pusherOk=true;});
+}catch(e){}
+// Polling removed to rely solely on Pusher. WebSockets handle it gracefully.
 
 function onMsg(d){const box=document.getElementById('chat-messages');if((d.sender_id===activeUserId||d.receiver_id===activeUserId)&&box&&!box.querySelector(`[data-mid="${d.id}"]`))appendMsg(d,d.sender_id===APP.currentUser.id);const uid=d.sender_id===APP.currentUser.id?d.receiver_id:d.sender_id;sidebarUpdate(uid,d.content);if(d.sender_id!==APP.currentUser.id&&d.sender_id!==activeUserId){const b=document.getElementById('unread-'+d.sender_id);if(b){b.textContent=parseInt(b.textContent||0)+1;b.style.display='flex';}}if(d.sender_id!==APP.currentUser.id){ playNotifSound(); if('Notification' in window && Notification.permission==='granted' && document.visibilityState!=='hidden') { new Notification('📰 Breaking News Alert', { body: 'New update available — tap to read latest news', icon: '/icons/icon-192.png', badge: '/icons/icon-192.png' }); } } }
 
-// POLLING 2s
-function startPoll(){if(pollTimer)return;pollTimer=setInterval(async()=>{if(!activeUserId)return;try{const u=APP.routes.messages+activeUserId+(lastKnownMsgId?'?after='+lastKnownMsgId:'');const r=await apiFetch(u);const d=await r.json();const box=document.getElementById('chat-messages');let gotNew=false;d.messages.forEach(m=>{if(!box.querySelector(`[data-mid="${m.id}"]`)){appendMsg(m,m.is_mine);if(!m.is_mine)gotNew=true;}if(m.id>lastKnownMsgId)lastKnownMsgId=m.id;});if(gotNew)playNotifSound();if(d.other_user)updateStatus(d.other_user);
-// Flip ticks: if all sent msgs are read, turn gray ✓✓ to blue ✓✓
-if(d.unread_by_other===0){box.querySelectorAll('[data-mine="1"]').forEach(el=>{el.querySelectorAll('span').forEach(s=>{if(s.textContent.trim()==='✓✓'&&!s.classList.contains('text-blue-400')){s.className='text-blue-400 text-[10px] font-bold ml-1';}});});}
-}catch(e){}},2000);}
+// FALLBACK FOR MESSAGE READ TICKS (only runs once on active user change, driven by visibility APIs optionally)
+async function doCheckReadTicks(){
+    if(!activeUserId)return;
+    try{
+        const u=APP.routes.messages+activeUserId+(lastKnownMsgId?'?after='+lastKnownMsgId:'');
+        const r=await apiFetch(u);
+        const d=await r.json();
+        const box=document.getElementById('chat-messages');
+
+        if(d.other_user)updateStatus(d.other_user);
+        // Flip ticks: if all sent msgs are read, turn gray ✓✓ to blue ✓✓
+        if(d.unread_by_other===0){box.querySelectorAll('[data-mine="1"]').forEach(el=>{el.querySelectorAll('span').forEach(s=>{if(s.textContent.trim()==='✓✓'&&!s.classList.contains('text-blue-400')){s.className='text-blue-400 text-[10px] font-bold ml-1';}});});}
+    }catch(e){}
+}
 
 function updateStatus(u){
     const st=document.getElementById('chat-status'),dot=document.getElementById('chat-dot'),tb=document.getElementById('typing-bar'),tl=document.getElementById('typing-label'),inp=document.getElementById('msg-input'),sb=document.getElementById('sidebar-msg-'+activeUserId),sbd=document.getElementById('status-'+activeUserId);
@@ -234,7 +251,7 @@ async function refreshChat(){if(!activeUserId)return;try{const u=APP.routes.mess
 
 // OPEN CHAT
 document.querySelectorAll('.user-item').forEach(b=>b.addEventListener('click',()=>{
-    const uid=b.dataset.userId,name=b.dataset.name,avatar=b.dataset.avatar,hasPin=b.dataset.hasPin==='1',ad=b.dataset.autoDelete||'never';
+    const uid=b.dataset.userId,name=b.dataset.name,avatar=b.dataset.avatar,hasPin=b.dataset.hasPin==='1',ad=b.dataset.autoDelete||'seen';
     if(hasPin){showPinModal('Enter PIN for '+name,'Verify',pin=>{verifyPin(uid,pin,()=>doOpenChat(uid,name,avatar,ad));});}
     else doOpenChat(uid,name,avatar,ad);
 }));
@@ -298,7 +315,7 @@ document.getElementById('pin-toggle-btn').addEventListener('click',()=>{if(!acti
     } else {
         document.getElementById('pin-remove').classList.add('hidden');
         showPinModal('Set 4-digit PIN','Enable PIN',async pin=>{
-            try{await apiFetch(APP.routes.setPin+activeUserId,'POST',{pin});if(b)b.dataset.hasPin='1';closePinModal();}catch(e){}
+            try{await apiFetch(APP.routes.setPin+activeUserId,'POST',{pin});if(b)b.dataset.hasPin='1';const pi=document.getElementById('pin-icon-'+activeUserId);if(pi)pi.innerHTML=' 🔐'; closePinModal();}catch(e){}
         });
     }
 });
@@ -307,7 +324,7 @@ document.getElementById('pin-remove').addEventListener('click', async () => {
     if(!activeUserId) return;
     const b=document.querySelector(`[data-user-id="${activeUserId}"]`);
     if(confirm('Are you sure you want to disable PIN protection for this chat?')) {
-        try { await apiFetch(APP.routes.removePin+activeUserId,'DELETE'); if(b)b.dataset.hasPin='0'; closePinModal(); } catch(e){}
+        try { await apiFetch(APP.routes.removePin+activeUserId,'DELETE'); if(b)b.dataset.hasPin='0'; const pi=document.getElementById('pin-icon-'+activeUserId);if(pi)pi.innerHTML=''; closePinModal(); } catch(e){}
     }
 });
 

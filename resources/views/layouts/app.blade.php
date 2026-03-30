@@ -428,7 +428,7 @@
                         badge.classList.remove('hidden');
                     }
                     pollActive = true;
-                    setInterval(checkUnread, 10000); // Every 10s
+                    setInterval(checkUnread, 60000); // Every 60s instead of 10s
                 }
             } catch(e) {}
         }

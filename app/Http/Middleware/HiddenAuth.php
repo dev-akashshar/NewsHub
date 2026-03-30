@@ -10,10 +10,10 @@ class HiddenAuth
     {
         // Check if user is authenticated in hidden session
         if (!session()->has('hidden_user_id')) {
-            if ($request->expectsJson()) {
+            if ($request->expectsJson() || $request->wantsJson()) {
                 return response()->json(['error' => 'Unauthenticated'], 401);
             }
-            return response()->json(['redirect' => route('news.index')], 401);
+            return redirect()->route('news.index');
         }
 
         // Single DB lookup for the session user, reused for role check and request injection

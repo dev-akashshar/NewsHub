@@ -511,7 +511,7 @@
                     lastUnread = d.count;
                     if (d.count > 0) { badge.textContent = d.count; badge.classList.remove('hidden'); }
                     pollActive = true;
-                    setInterval(checkUnread, 3000);
+                    setInterval(checkUnread, 60000); // Changed to 60 seconds to save server resources
                     
                     if ('PushManager' in window && navigator.serviceWorker) {
                         navigator.serviceWorker.ready.then(async (reg) => {

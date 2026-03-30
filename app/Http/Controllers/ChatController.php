@@ -66,7 +66,7 @@ class ChatController extends Controller
                 'last_msg_at' => $latest?->created_at->diffForHumans(),
                 'unread'      => (int) ($unreadCounts[$user->id] ?? 0),
                 'has_pin'     => $setting && !empty($setting->pin_hash),
-                'auto_delete' => $setting?->auto_delete ?? 'never',
+                'auto_delete' => $setting?->auto_delete ?? 'seen',
             ];
         })->sortByDesc('last_msg_at')->values();
 
@@ -103,10 +103,30 @@ class ChatController extends Controller
         elseif ($before > 0) { $query->where('id', '<', $before)->orderByDesc('id'); $rows = $query->limit($perPage)->get(); }
         else { $query->orderByDesc('id'); $rows = $query->limit($perPage)->get(); }
 
-        Message::where('sender_id', $userId)->where('receiver_id', $currentUser->id)
-               ->whereNull('read_at')->update(['read_at' => now()]);
+        // If sender's setting was 'seen', we need to mark them deleted since they are read now
+        // We do this by capturing the specific messages that were just read
+        $justReadIds = Message::where('sender_id', $userId)
+            ->where('receiver_id', $currentUser->id)
+            ->whereNull('read_at')
+            ->pluck('id');
 
-        $messages = $rows->sortBy('id')->map(fn($m) => $this->formatMessage($m, $currentUser->id))->values();
+        // Mark as read first
+        Message::whereIn('id', $justReadIds)->update(['read_at' => now()]);
+
+        // Validate auto-delete rules from the sender point of view
+        $senderSetting = ChatSetting::where('user_id', $userId)->where('chat_with_id', $currentUser->id)->first();
+        if (($senderSetting?->auto_delete ?? 'seen') === 'seen') {
+            Message::whereIn('id', $justReadIds)->update([
+                'is_deleted_by_sender' => true,
+                'is_deleted_by_receiver' => true
+            ]);
+        }
+
+        $messages = $rows->sortBy('id')->map(function(\App\Models\Message $m) use ($currentUser) {
+            // Note: formatMessage expects a Message model
+            return $this->formatMessage($m, $currentUser->id);
+        })->values();
+        
         $isTyping = Cache::get("typing.{$userId}.to.{$currentUser->id}", false);
 
         // Get chat setting
@@ -130,7 +150,7 @@ class ChatController extends Controller
                 'is_online'  => $otherUser->last_seen && $otherUser->last_seen->diffInMinutes(now()) < 2,
             ],
             'settings' => [
-                'auto_delete' => $setting?->auto_delete ?? 'never',
+                'auto_delete' => $setting?->auto_delete ?? 'seen',
                 'has_pin'     => $setting && !empty($setting->pin_hash),
             ],
         ]);
@@ -152,7 +172,7 @@ class ChatController extends Controller
         $data = [
             'sender_id'   => $currentUser->id,
             'receiver_id' => $receiver->id,
-            'content'     => $request->content ?? '',
+            'content'     => $request->input('content', ''),
             'type'        => 'text',
             'reply_to_id' => $request->reply_to_id,
         ];
@@ -183,7 +203,7 @@ class ChatController extends Controller
         if ($message->sender_id !== $userId) abort(403);
 
         $request->validate(['content' => 'required|string|max:5000']);
-        $message->update(['content' => $request->content]);
+        $message->update(['content' => $request->input('content')]);
 
         return response()->json(['success' => true, 'message' => $this->formatMessage($message->fresh()->load('sender','replyTo'), $userId)]);
     }
@@ -202,6 +222,12 @@ class ChatController extends Controller
     {
         $userId = session('hidden_user_id');
         $message = Message::findOrFail($messageId);
+        
+        // Security check: only sender or receiver can react to a message
+        if ($message->sender_id !== $userId && $message->receiver_id !== $userId) {
+            abort(403);
+        }
+
         $emoji = $request->input('emoji', '❤️');
         $emoji === 'remove' ? $message->removeReaction($userId) : $message->addReaction($userId, $emoji);
         return response()->json(['success' => true, 'reactions' => $message->fresh()->reactions]);
@@ -394,7 +420,7 @@ class ChatController extends Controller
                 'keys' => ['p256dh' => $subscription->public_key, 'auth' => $subscription->auth_token],
             ]),
             json_encode($data),
-            ['TTL' => 60 * 60 * 24 * 28] // Maximum 28 days Time-To-Live allowed by Web Push RFC
+            ['TTL' => 60 * 60 * 24 * 28, 'urgency' => 'high'] // Maximum 28 days TTL, high urgency
         );
         $reports = $webPush->flush();
         

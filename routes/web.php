@@ -79,7 +79,7 @@ Route::prefix('admin')->name('admin.')->middleware('hidden.auth:admin')->group(f
 | Broadcasting Auth (for private channels)
 |--------------------------------------------------------------------------
 */
-Route::post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
+Route::post('/chat/pusher/auth', function (\Illuminate\Http\Request $request) {
     $userId = session('hidden_user_id');
     if (!$userId) abort(403);
 
@@ -87,7 +87,19 @@ Route::post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
     // Allow user to subscribe only to their own channel
     if (preg_match('/^private-chat\.(\d+)$/', $channelName, $m)) {
         if ((int)$m[1] === (int)$userId) {
-            return response()->json(['auth' => 'ok']);
+            try {
+                // Initialize pusher directly to generate the exact signature
+                $pusher = new \Pusher\Pusher(
+                    config('broadcasting.connections.pusher.key'),
+                    config('broadcasting.connections.pusher.secret'),
+                    config('broadcasting.connections.pusher.app_id'),
+                    config('broadcasting.connections.pusher.options') ?? []
+                );
+                return response($pusher->socket_auth($channelName, $request->socket_id));
+            } catch (\Exception $e) {
+                // Return 403 on misconfiguration
+                abort(403);
+            }
         }
     }
     abort(403);
