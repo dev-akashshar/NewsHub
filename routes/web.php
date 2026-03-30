@@ -40,6 +40,7 @@ Route::prefix('chat')->name('chat.')->middleware('hidden.auth')->group(function 
     Route::put('/message/{id}',                        [ChatController::class, 'editMessage'])->name('edit-message');
     Route::post('/typing/{userId}',                    [ChatController::class, 'typing'])->name('typing');
     Route::post('/ping/{userId?}',                     [ChatController::class, 'ping'])->name('ping');
+    Route::post('/call-signal',                        [ChatController::class, 'callSignal'])->name('call-signal');
     Route::post('/react/{messageId}',                  [ChatController::class, 'react'])->name('react');
     Route::delete('/message/{id}',                     [ChatController::class, 'deleteMessage'])->name('delete-message');
     Route::post('/avatar',                             [ChatController::class, 'updateAvatar'])->name('avatar');

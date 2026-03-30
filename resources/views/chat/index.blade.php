@@ -57,6 +57,7 @@ window.APP={
         setPin:'/chat/pin/',verifyPin:'/chat/pin/',removePin:'/chat/pin/',
         autoDelete:'/chat/auto-delete/',
         pushSub:'{{ route("chat.push-subscription") }}',news:'{{ route("news.index") }}',
+        callSignal:'{{ route("chat.call-signal") }}',
         admin:'{{ route("admin.dashboard") }}',
     },
     vapidKey:'{{ config("services.vapid.public_key") }}',
@@ -108,6 +109,8 @@ window.APP={
                 <select id="ad-select" class="bg-slate-800/60 border border-slate-700/40 text-[10px] text-slate-400 rounded-lg px-1.5 py-1 focus:outline-none cursor-pointer" title="Auto-delete">
                     <option value="seen" selected>After Seen</option><option value="never">Never</option><option value="immediate">Instant</option><option value="5min">5 min</option><option value="1day">1 day</option><option value="7day">7 days</option>
                 </select>
+                <button id="call-audio-btn" class="w-7 h-7 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 flex items-center justify-center transition" title="Audio Call"><svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg></button>
+                <button id="call-video-btn" class="w-7 h-7 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 flex items-center justify-center transition" title="Video Call"><svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553 1.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/></svg></button>
                 <button id="pin-toggle-btn" class="w-7 h-7 rounded-lg bg-slate-800/40 text-slate-600 hover:text-amber-400 flex items-center justify-center transition" title="Set PIN">🔐</button>
             </div>
         </div>
@@ -143,8 +146,35 @@ window.APP={
 <!-- Session modal -->
 <div id="sess-modal" class="modal-bg"><div class="bg-[#0a0f1a] rounded-3xl w-full max-w-xs border border-slate-800/50 p-8 text-center"><h3 class="text-white font-bold mb-1">Session Expired</h3><p class="text-slate-500 text-sm mb-5">Please log in again.</p><button onclick="location.href=APP.routes.news" class="w-full bg-brand-500 text-white font-bold rounded-2xl py-2.5 text-sm">Go to NewsHub</button></div></div>
 
+<!-- Incoming Call Modal -->
+<div id="incoming-call-modal" class="modal-bg z-[70]"><div class="bg-[#0a0f1a] rounded-3xl w-full max-w-xs border border-slate-800/50 p-8 text-center shadow-2xl shadow-emerald-500/10"><img id="inc-call-avatar" src="" class="w-20 h-20 rounded-full object-cover mx-auto mb-4 ring-4 ring-emerald-500/30 animate-pulse" alt=""><h3 class="text-white font-bold text-lg mb-1" id="inc-call-name"></h3><p class="text-emerald-400 text-sm mb-6 flex items-center justify-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> <span id="inc-call-type">Incoming call...</span></p><div class="flex justify-center gap-6"><button id="inc-call-reject" class="w-14 h-14 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-red-500/20 transition hover:scale-105"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" style="transform: rotate(135deg);"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg></button><button id="inc-call-accept" class="w-14 h-14 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/20 transition hover:scale-105 animate-bounce"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg></button></div></div></div>
+
+<!-- Active Call View -->
+<div id="active-call-view" class="hidden fixed inset-0 z-[80] bg-[#030712] flex flex-col transition-all duration-300 transform translate-y-full opacity-0">
+    <div class="relative flex-1 bg-black overflow-hidden flex items-center justify-center">
+        <!-- Remote Video -->
+        <video id="remote-video" autoplay playsinline class="absolute inset-0 w-full h-full object-cover hidden"></video>
+        <!-- Audio UI -->
+        <div id="audio-only-ui" class="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-black">
+            <img id="call-active-avatar" src="" class="w-32 h-32 rounded-full object-cover ring-4 ring-slate-800 shadow-2xl mb-6">
+            <h2 id="call-active-name" class="text-2xl text-white font-bold"></h2>
+            <p id="call-active-status" class="text-emerald-400 mt-2 font-medium tracking-wide">Connecting...</p>
+        </div>
+        <!-- Local Video -->
+        <video id="local-video" autoplay playsinline muted class="absolute top-6 right-6 w-28 h-40 bg-slate-800 rounded-xl object-cover shadow-2xl border border-slate-700/50 hidden z-10 transition-all"></video>
+    </div>
+    <!-- Call Controls -->
+    <div class="h-28 bg-gradient-to-t from-[#030712] via-[#030712] to-transparent flex items-center justify-center gap-6 pb-6 px-6 relative z-10">
+        <button id="call-mute-btn" class="w-12 h-12 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-slate-700 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg></button>
+        <button id="call-video-toggle" class="w-12 h-12 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-slate-700 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></button>
+        <button id="call-end-btn" class="w-16 h-16 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg shadow-red-500/20 hover:bg-red-600 transition hover:scale-105"><svg class="w-7 h-7" fill="currentColor" viewBox="0 0 20 20" style="transform: rotate(135deg);"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg></button>
+    </div>
+</div>
+
 <!-- Notification Sound (Always Available) -->
 <audio id="chat-alert-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+<audio id="call-ringtone" src="https://assets.mixkit.co/active_storage/sfx/2855/2855-preview.mp3" loop preload="auto"></audio>
+<audio id="call-outgoing" src="https://assets.mixkit.co/active_storage/sfx/2857/2857-preview.mp3" loop preload="auto"></audio>
 
 <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
 <script>
@@ -234,7 +264,7 @@ try{
         },
         forceTLS: true
     });
-    P.subscribe('private-chat.'+APP.currentUser.id).bind('new.message',onMsg).bind('typing',onTyping);
+    P.subscribe('private-chat.'+APP.currentUser.id).bind('new.message',onMsg).bind('typing',onTyping).bind('call.signal',onCallSignalEvent);
     P.connection.bind('connected',()=>{pusherOk=true; pusherSocketId=P.connection.socket_id;});
 }catch(e){}
 
@@ -507,6 +537,161 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
 function apiFetch(u,m='GET',b=null){const hdrs={'X-CSRF-TOKEN':APP.csrfToken,'X-Requested-With':'XMLHttpRequest'};if(pusherSocketId) hdrs['X-Socket-ID']=pusherSocketId;const o={method:m,headers:hdrs};if(b){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b);}return fetch(u,o);}
 function sidebarUpdate(uid,c){const el=document.getElementById('sidebar-msg-'+uid);if(el){el.textContent=c;el.className='text-slate-500 text-xs truncate mt-0.5';}}
 function b64arr(s){if(!s)return new Uint8Array(0);const p='='.repeat((4-s.length%4)%4);const b=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...b].map(c=>c.charCodeAt(0)));}
+
+// --- WEBRTC CALLING LOGIC ---
+let rtcPeer=null, localStream=null;
+let currentCallStatus='idle'; 
+let pendingIceCandidates=[];
+let amICaller=false;
+let callType='audio'; 
+let currentCallPartnerId=null;
+const stunServers={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
+
+function ensureRtcPeer(){
+    if(rtcPeer) return;
+    rtcPeer=new RTCPeerConnection(stunServers);
+    rtcPeer.onicecandidate=(e)=>{if(e.candidate)sendSignal({type:'ice',candidate:e.candidate});};
+    rtcPeer.ontrack=(e)=>{
+        const rv=document.getElementById('remote-video');
+        rv.srcObject=e.streams[0];
+        if(callType==='video')rv.classList.remove('hidden');
+        document.getElementById('audio-only-ui').classList.add('hidden');
+    };
+}
+
+async function startMedia(type){
+    try{
+        localStream=await navigator.mediaDevices.getUserMedia({audio:true, video:type==='video'?{facingMode:"user"}:false});
+        const lv=document.getElementById('local-video');
+        lv.srcObject=localStream;
+        if(type==='video')lv.classList.remove('hidden');else lv.classList.add('hidden');
+        localStream.getTracks().forEach(track=>rtcPeer.addTrack(track,localStream));
+        return true;
+    }catch(err){alert('Could not access microphone/camera. Please grant permissions.');return false;}
+}
+
+function stopMedia(){
+    if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;}
+    document.getElementById('local-video').srcObject=null;
+    document.getElementById('remote-video').srcObject=null;
+    document.getElementById('call-ringtone').pause();
+    document.getElementById('call-outgoing').pause();
+}
+
+function sendSignal(data){
+    const targetId = currentCallPartnerId || activeUserId;
+    if(!targetId) return;
+    apiFetch(APP.routes.callSignal,'POST',{receiver_id:targetId,signal_data:data});
+}
+
+function showActiveCallUI(partnerName,partnerAvatar,statusText){
+    const v=document.getElementById('active-call-view');
+    v.classList.remove('hidden');setTimeout(()=>{v.classList.remove('translate-y-full','opacity-0');},10);
+    document.getElementById('call-active-name').textContent=partnerName;
+    document.getElementById('call-active-avatar').src=partnerAvatar||'';
+    document.getElementById('call-active-status').textContent=statusText;
+    document.getElementById('audio-only-ui').classList.remove('hidden');
+    document.getElementById('remote-video').classList.add('hidden');
+}
+
+function hideActiveCallUI(){
+    const v=document.getElementById('active-call-view');
+    v.classList.add('translate-y-full','opacity-0');
+    setTimeout(()=>v.classList.add('hidden'),300);
+}
+
+// Outgoing
+async function startCall(type){
+    if(!activeUserId) return;
+    currentCallPartnerId=activeUserId;
+    callType=type;amICaller=true;currentCallStatus='ringing';
+    showActiveCallUI(activeUserName,document.getElementById('chat-avatar').src,'Calling...');
+    document.getElementById('call-outgoing').currentTime=0;document.getElementById('call-outgoing').play().catch(()=>{});
+    ensureRtcPeer();
+    const ok=await startMedia(type);if(!ok){endCallLocally();return;}
+    const offer=await rtcPeer.createOffer();await rtcPeer.setLocalDescription(offer);
+    sendSignal({type:'offer',offer:offer,callType:type,callerName:APP.currentUser.name,callerAvatar:APP.currentUser.avatar_url});
+}
+
+// Incoming 
+function showIncomingModal(callerName,avatar,type){
+    document.getElementById('inc-call-name').textContent=callerName;
+    document.getElementById('inc-call-avatar').src=avatar||'';
+    document.getElementById('inc-call-type').textContent=`Incoming ${type} call...`;
+    document.getElementById('incoming-call-modal').classList.add('show');
+    document.getElementById('call-ringtone').currentTime=0;document.getElementById('call-ringtone').play().catch(()=>{});
+}
+function hideIncomingModal(){
+    document.getElementById('incoming-call-modal').classList.remove('show');
+    document.getElementById('call-ringtone').pause();
+}
+
+// Signaling receiver
+function onCallSignalEvent(d){
+    const sig=d.signal;
+    if(sig.type==='offer'){
+        if(currentCallStatus!=='idle'){apiFetch(APP.routes.callSignal,'POST',{receiver_id:d.sender_id,signal_data:{type:'reject',reason:'busy'}});return;}
+        currentCallPartnerId=d.sender_id;
+        activeUserName=sig.callerName;callType=sig.callType;amICaller=false;currentCallStatus='ringing';
+        rtcPeer=new RTCPeerConnection(stunServers);
+        rtcPeer.onicecandidate=(e)=>{if(e.candidate)sendSignal({type:'ice',candidate:e.candidate});};
+        rtcPeer.setRemoteDescription(new RTCSessionDescription(sig.offer));
+        showIncomingModal(sig.callerName,sig.callerAvatar,sig.callType);
+    }
+    else if(sig.type==='answer'&&rtcPeer){
+        document.getElementById('call-outgoing').pause();
+        document.getElementById('call-active-status').textContent=`Connected • ${callType.toUpperCase()}`;
+        currentCallStatus='connected';
+        rtcPeer.setRemoteDescription(new RTCSessionDescription(sig.answer));
+        pendingIceCandidates.forEach(c=>rtcPeer.addIceCandidate(c));pendingIceCandidates=[];
+    }
+    else if(sig.type==='ice'){
+        if(rtcPeer&&rtcPeer.remoteDescription)rtcPeer.addIceCandidate(new RTCIceCandidate(sig.candidate)).catch(()=>{});
+        else pendingIceCandidates.push(new RTCIceCandidate(sig.candidate));
+    }
+    else if(sig.type==='reject'){
+        endCallLocally();
+    }
+    else if(sig.type==='end'){
+        endCallLocally();
+    }
+}
+
+document.getElementById('inc-call-accept').addEventListener('click',async()=>{
+    hideIncomingModal();showActiveCallUI(activeUserName,document.getElementById('inc-call-avatar').src,`Connected • ${callType.toUpperCase()}`);
+    currentCallStatus='connected';
+    rtcPeer.ontrack=(e)=>{
+        const rv=document.getElementById('remote-video');
+        rv.srcObject=e.streams[0];
+        if(callType==='video')rv.classList.remove('hidden');
+        document.getElementById('audio-only-ui').classList.add('hidden');
+    };
+    const ok=await startMedia(callType);if(!ok){endCallLocally();return;}
+    const answer=await rtcPeer.createAnswer();await rtcPeer.setLocalDescription(answer);
+    sendSignal({type:'answer',answer:answer});
+});
+
+document.getElementById('inc-call-reject').addEventListener('click',()=>{
+    hideIncomingModal();sendSignal({type:'reject',reason:'declined'});
+    currentCallStatus='idle';if(rtcPeer)rtcPeer.close();rtcPeer=null;
+});
+
+function endCallLocally(){
+    stopMedia();if(rtcPeer){rtcPeer.close();rtcPeer=null;}
+    hideActiveCallUI();hideIncomingModal();
+    currentCallStatus='idle';pendingIceCandidates=[];
+}
+
+document.getElementById('call-end-btn').addEventListener('click',()=>{sendSignal({type:'end'});endCallLocally();});
+document.getElementById('call-audio-btn').addEventListener('click',()=>startCall('audio'));
+document.getElementById('call-video-btn').addEventListener('click',()=>startCall('video'));
+
+document.getElementById('call-mute-btn').addEventListener('click',function(){
+    if(localStream){const au=localStream.getAudioTracks()[0];if(au){au.enabled=!au.enabled;this.classList.toggle('bg-slate-800');this.classList.toggle('bg-red-500/80');}}
+});
+document.getElementById('call-video-toggle').addEventListener('click',function(){
+    if(localStream){const vTrack=localStream.getVideoTracks()[0];if(vTrack){vTrack.enabled=!vTrack.enabled;this.classList.toggle('bg-slate-800');this.classList.toggle('bg-red-500/80');}}
+});
 </script>
 </body>
 </html>

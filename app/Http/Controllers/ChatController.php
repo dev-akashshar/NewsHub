@@ -241,6 +241,22 @@ class ChatController extends Controller
         ]);
     }
 
+    /** WebRTC Signaling Relay */
+    public function callSignal(Request $request)
+    {
+        $request->validate([
+            'receiver_id' => 'required|integer',
+            'signal_data' => 'required|array',
+        ]);
+        
+        $senderId = session('hidden_user_id');
+        try {
+            broadcast(new \App\Events\CallSignal($senderId, $request->receiver_id, $request->signal_data))->toOthers();
+        } catch (\Exception $e) {}
+
+        return response()->json(['success' => true]);
+    }
+
     /** Add emoji reaction */
     public function react(Request $request, int $messageId)
     {
