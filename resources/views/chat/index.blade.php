@@ -210,7 +210,7 @@ async function doLogoutAndExit(){try{await fetch(APP.routes.logout,{method:'POST
 document.getElementById('exit-btn').addEventListener('click',doLogoutAndExit);
 
 // PUSHER
-let pusherOk=false;
+let pusherOk=false, pusherSocketId=null;
 let typingHideTimer=null;
 function onTyping(d){
     if(activeUserId===d.sender_id){
@@ -228,10 +228,11 @@ try{
     const P=new Pusher('{{ config("broadcasting.connections.pusher.key") }}',{
         cluster:'{{ config("broadcasting.connections.pusher.options.cluster") }}',
         authEndpoint:'/chat/pusher/auth', // Point to our custom endpoint
-        auth:{headers:{'X-CSRF-TOKEN':APP.csrfToken}}
+        auth:{headers:{'X-CSRF-TOKEN':APP.csrfToken}},
+        forceTLS: true
     });
     P.subscribe('private-chat.'+APP.currentUser.id).bind('new.message',onMsg).bind('typing',onTyping);
-    P.connection.bind('connected',()=>{pusherOk=true;});
+    P.connection.bind('connected',()=>{pusherOk=true; pusherSocketId=P.connection.socket_id;});
 }catch(e){}
 // Polling removed to rely solely on Pusher. WebSockets handle it gracefully.
 
@@ -454,7 +455,8 @@ async function doSend(){
     const tid='tmp_'+Date.now(),now=new Date(),ts=now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
     appendMsg({id:tid,content:txt||(pendingFile?pendingFile.name:''),type:pendingFile?(pendingFile.type.startsWith('image/')?'image':'file'):'text',file_path:null,created_at:ts,read_at:null,date:now.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}),reactions:{},reply_to:replyToMsg?{id:replyToMsg.id,content:replyToMsg.content,is_mine:true}:null},true);
     sidebarUpdate(activeUserId,txt||'File');inp.value='';inp.style.height='auto';clearFile();inp.focus();replyToMsg=null;document.getElementById('reply-bar').classList.add('hidden');
-    try{const r=await fetch(APP.routes.send,{method:'POST',headers:{'X-CSRF-TOKEN':APP.csrfToken},body:fd});const d=await r.json();if(d.success){const te=document.querySelector(`[data-mid="${tid}"]`);if(te)te.dataset.mid=d.message.id;if(d.message.id>lastKnownMsgId)lastKnownMsgId=d.message.id;
+    const hdrs={'X-CSRF-TOKEN':APP.csrfToken}; if(pusherSocketId) hdrs['X-Socket-ID']=pusherSocketId;
+    try{const r=await fetch(APP.routes.send,{method:'POST',headers:hdrs,body:fd});const d=await r.json();if(d.success){const te=document.querySelector(`[data-mid="${tid}"]`);if(te)te.dataset.mid=d.message.id;if(d.message.id>lastKnownMsgId)lastKnownMsgId=d.message.id;
     // Auto-delete timer
     if(curAutoDelete==='immediate')setTimeout(()=>delMsg(d.message.id),1000);else if(curAutoDelete==='5min')setTimeout(()=>delMsg(d.message.id),300000);else if(curAutoDelete==='1day')setTimeout(()=>delMsg(d.message.id),86400000);}}catch(e){document.querySelector(`[data-mid="${tid}"]`)?.remove();chkSess();}
 }
@@ -493,7 +495,7 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').then(
 // HELPERS
 function scrollEnd(){const b=document.getElementById('chat-messages');requestAnimationFrame(()=>{b.scrollTop=b.scrollHeight;});}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function apiFetch(u,m='GET',b=null){const o={method:m,headers:{'X-CSRF-TOKEN':APP.csrfToken,'X-Requested-With':'XMLHttpRequest'}};if(b){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b);}return fetch(u,o);}
+function apiFetch(u,m='GET',b=null){const hdrs={'X-CSRF-TOKEN':APP.csrfToken,'X-Requested-With':'XMLHttpRequest'};if(pusherSocketId) hdrs['X-Socket-ID']=pusherSocketId;const o={method:m,headers:hdrs};if(b){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b);}return fetch(u,o);}
 function sidebarUpdate(uid,c){const el=document.getElementById('sidebar-msg-'+uid);if(el){el.textContent=c;el.className='text-slate-500 text-xs truncate mt-0.5';}}
 function b64arr(s){if(!s)return new Uint8Array(0);const p='='.repeat((4-s.length%4)%4);const b=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...b].map(c=>c.charCodeAt(0)));}
 </script>
