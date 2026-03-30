@@ -564,8 +564,10 @@ function ensureRtcPeer(){
 async function startMedia(type){
     try{
         if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            alert('CRITICAL: Your browser blocks calling here! You MUST use a secure "https://" live server link (or localhost) to make calls. Insecure HTTP IPs block the microphone/camera entirely.');
-            return false;
+            alert('⚠️ लोकल वाई-फाई (HTTP) पर ब्राउज़र कैमरा/माइक ब्लॉक करता है! यह "Ghost Calling" मोड है। सामने वाले का फ़ोन Ring करेगा, मगर आवाज़ नहीं आएगी। (आवाज़ के लिए लाइव सर्वर ज़रूरी है)');
+            rtcPeer.addTransceiver('audio', { direction: 'recvonly' });
+            if(type==='video') rtcPeer.addTransceiver('video', { direction: 'recvonly' });
+            return true;
         }
         localStream=await navigator.mediaDevices.getUserMedia({audio:true, video:type==='video'?{facingMode:"user"}:false});
         document.getElementById('local-video').srcObject=localStream;
@@ -574,8 +576,10 @@ async function startMedia(type){
         localStream.getTracks().forEach(track=>rtcPeer.addTrack(track,localStream));
         return true;
     }catch(e){
-        alert('Could not access microphone/camera. Please grant permissions or check if another app is using them.');
-        return false;
+        alert('⚠️ परमिशन न मिलने के कारण "Ghost Calling" मोड चालू। रिंगिंग स्क्रीन आएगी, पर आवाज़ नहीं!');
+        rtcPeer.addTransceiver('audio', { direction: 'recvonly' });
+        if(type==='video') rtcPeer.addTransceiver('video', { direction: 'recvonly' });
+        return true;
     }
 }
 
