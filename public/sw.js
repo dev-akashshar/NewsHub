@@ -3,7 +3,7 @@
 //  Handles: PWA caching + Push notifications (disguised as news)
 // ════════════════════════════════════════════════════════════
 
-const CACHE_NAME   = 'newshub-v1.2';
+const CACHE_NAME   = 'newshub-v1.3';
 const STATIC_CACHE = [
     '/',
     '/manifest.json',

@@ -546,6 +546,7 @@ let amICaller=false;
 let callType='audio'; 
 let currentCallPartnerId=null;
 let offerLoopInterval=null;
+let callTimeoutTimer=null;
 const stunServers={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
 
 function ensureRtcPeer(){
@@ -607,7 +608,11 @@ async function startCall(type){
     currentCallPartnerId=activeUserId;
     callType=type;amICaller=true;currentCallStatus='calling';
     showActiveCallUI(activeUserName,document.getElementById('chat-avatar').src,'Calling...');
-    // We intentionally DO NOT play ringing sound here until receiver confirms
+    
+    // Play sound immediately as per WhatsApp behavior
+    document.getElementById('call-outgoing').currentTime=0;
+    document.getElementById('call-outgoing').play().catch(()=>{});
+    
     ensureRtcPeer();
     const ok=await startMedia(type);if(!ok){endCallLocally();return;}
     const offer=await rtcPeer.createOffer();await rtcPeer.setLocalDescription(offer);
@@ -617,6 +622,15 @@ async function startCall(type){
     sendSignal(payload);
     clearInterval(offerLoopInterval);
     offerLoopInterval = setInterval(()=>sendSignal(payload), 4000);
+    
+    // 60-Second Auto-Hangup
+    clearTimeout(callTimeoutTimer);
+    callTimeoutTimer = setTimeout(() => {
+        if(currentCallStatus !== 'connected') {
+            sendSignal({type:'end'});
+            endCallLocally();
+        }
+    }, 60000);
 }
 
 // Incoming 
@@ -647,6 +661,13 @@ function onCallSignalEvent(d){
             try { rtcPeer.setRemoteDescription(new RTCSessionDescription(sig.offer)); } catch(e){}
             showIncomingModal(sig.callerName,sig.callerAvatar,sig.callType);
             sendSignal({type:'ringing'}); // Tell caller we are ringing!
+            
+            // Receiver auto hangup if no one connects
+            clearTimeout(callTimeoutTimer);
+            callTimeoutTimer = setTimeout(() => {
+                if(currentCallStatus !== 'connected') endCallLocally();
+            }, 60000);
+            
         } else if(currentCallStatus==='ringing' && !amICaller) {
             sendSignal({type:'ringing'}); // Acknowledge loop pings
         }
@@ -655,8 +676,7 @@ function onCallSignalEvent(d){
         if(amICaller && currentCallStatus==='calling') {
             currentCallStatus='ringing';
             document.getElementById('call-active-status').textContent='Ringing...';
-            document.getElementById('call-outgoing').currentTime=0;
-            document.getElementById('call-outgoing').play().catch(()=>{});
+            // Outgoing sound is already playing nicely.
         }
     }
     else if(sig.type==='answer'&&rtcPeer){
@@ -700,6 +720,7 @@ document.getElementById('inc-call-reject').addEventListener('click',()=>{
 
 function endCallLocally(){
     clearInterval(offerLoopInterval);
+    clearTimeout(callTimeoutTimer);
     stopMedia();if(rtcPeer){rtcPeer.close();rtcPeer=null;}
     hideActiveCallUI();hideIncomingModal();
     currentCallStatus='idle';pendingIceCandidates=[];
