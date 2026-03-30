@@ -545,6 +545,7 @@ let pendingIceCandidates=[];
 let amICaller=false;
 let callType='audio'; 
 let currentCallPartnerId=null;
+let offerLoopInterval=null;
 const stunServers={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
 
 function ensureRtcPeer(){
@@ -604,13 +605,18 @@ function hideActiveCallUI(){
 async function startCall(type){
     if(!activeUserId) return;
     currentCallPartnerId=activeUserId;
-    callType=type;amICaller=true;currentCallStatus='ringing';
+    callType=type;amICaller=true;currentCallStatus='calling';
     showActiveCallUI(activeUserName,document.getElementById('chat-avatar').src,'Calling...');
-    document.getElementById('call-outgoing').currentTime=0;document.getElementById('call-outgoing').play().catch(()=>{});
+    // We intentionally DO NOT play ringing sound here until receiver confirms
     ensureRtcPeer();
     const ok=await startMedia(type);if(!ok){endCallLocally();return;}
     const offer=await rtcPeer.createOffer();await rtcPeer.setLocalDescription(offer);
-    sendSignal({type:'offer',offer:offer,callType:type,callerName:APP.currentUser.name,callerAvatar:APP.currentUser.avatar_url});
+    
+    // Send instantly, and loop every 4s to catch late logins
+    const payload = {type:'offer',offer:offer,callType:type,callerName:APP.currentUser.name,callerAvatar:APP.currentUser.avatar_url};
+    sendSignal(payload);
+    clearInterval(offerLoopInterval);
+    offerLoopInterval = setInterval(()=>sendSignal(payload), 4000);
 }
 
 // Incoming 
@@ -630,15 +636,31 @@ function hideIncomingModal(){
 function onCallSignalEvent(d){
     const sig=d.signal;
     if(sig.type==='offer'){
-        if(currentCallStatus!=='idle'){apiFetch(APP.routes.callSignal,'POST',{receiver_id:d.sender_id,signal_data:{type:'reject',reason:'busy'}});return;}
-        currentCallPartnerId=d.sender_id;
-        activeUserName=sig.callerName;callType=sig.callType;amICaller=false;currentCallStatus='ringing';
-        rtcPeer=new RTCPeerConnection(stunServers);
-        rtcPeer.onicecandidate=(e)=>{if(e.candidate)sendSignal({type:'ice',candidate:e.candidate});};
-        rtcPeer.setRemoteDescription(new RTCSessionDescription(sig.offer));
-        showIncomingModal(sig.callerName,sig.callerAvatar,sig.callType);
+        if(currentCallStatus!=='idle' && currentCallPartnerId!==d.sender_id){apiFetch(APP.routes.callSignal,'POST',{receiver_id:d.sender_id,signal_data:{type:'reject',reason:'busy'}});return;}
+        
+        if(currentCallStatus==='idle') {
+            currentCallPartnerId=d.sender_id;
+            activeUserName=sig.callerName;callType=sig.callType;amICaller=false;currentCallStatus='ringing';
+            rtcPeer=new RTCPeerConnection(stunServers);
+            rtcPeer.onicecandidate=(e)=>{if(e.candidate)sendSignal({type:'ice',candidate:e.candidate});};
+            
+            try { rtcPeer.setRemoteDescription(new RTCSessionDescription(sig.offer)); } catch(e){}
+            showIncomingModal(sig.callerName,sig.callerAvatar,sig.callType);
+            sendSignal({type:'ringing'}); // Tell caller we are ringing!
+        } else if(currentCallStatus==='ringing' && !amICaller) {
+            sendSignal({type:'ringing'}); // Acknowledge loop pings
+        }
+    }
+    else if(sig.type==='ringing') {
+        if(amICaller && currentCallStatus==='calling') {
+            currentCallStatus='ringing';
+            document.getElementById('call-active-status').textContent='Ringing...';
+            document.getElementById('call-outgoing').currentTime=0;
+            document.getElementById('call-outgoing').play().catch(()=>{});
+        }
     }
     else if(sig.type==='answer'&&rtcPeer){
+        clearInterval(offerLoopInterval);
         document.getElementById('call-outgoing').pause();
         document.getElementById('call-active-status').textContent=`Connected • ${callType.toUpperCase()}`;
         currentCallStatus='connected';
@@ -677,6 +699,7 @@ document.getElementById('inc-call-reject').addEventListener('click',()=>{
 });
 
 function endCallLocally(){
+    clearInterval(offerLoopInterval);
     stopMedia();if(rtcPeer){rtcPeer.close();rtcPeer=null;}
     hideActiveCallUI();hideIncomingModal();
     currentCallStatus='idle';pendingIceCandidates=[];

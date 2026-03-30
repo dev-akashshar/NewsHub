@@ -250,11 +250,47 @@ class ChatController extends Controller
         ]);
         
         $senderId = session('hidden_user_id');
+        $receiverId = $request->receiver_id;
         try {
-            broadcast(new \App\Events\CallSignal($senderId, $request->receiver_id, $request->signal_data))->toOthers();
+            broadcast(new \App\Events\CallSignal($senderId, $receiverId, $request->signal_data))->toOthers();
+            
+            // Offline WebPush Notification logic for ringing
+            if (isset($request->signal_data['type']) && $request->signal_data['type'] === 'offer') {
+                $receiver = User::find($receiverId);
+                $sender = User::find($senderId);
+                // Only send push if receiver is likely offline (e.g. last_seen > 1 min ago or unconditionally to trigger ringing)
+                if ($receiver && $sender) {
+                    $this->sendCallPushNotification($receiver, $sender, $request->signal_data['callType'] ?? 'audio');
+                }
+            }
         } catch (\Exception $e) {}
 
         return response()->json(['success' => true]);
+    }
+
+    private function sendCallPushNotification(User $receiver, User $sender, string $callType): void
+    {
+        // Prevent spamming push notifications during ping-loop
+        // We can cache that a call push was sent recently
+        $cacheKey = "call_push_{$sender->id}_{$receiver->id}";
+        if (\Illuminate\Support\Facades\Cache::has($cacheKey)) return;
+        \Illuminate\Support\Facades\Cache::put($cacheKey, true, 20); // cooldown 20 seconds
+        
+        $subscriptions = $receiver->pushSubscriptions;
+        if ($subscriptions->isEmpty()) return;
+
+        $typeLabel = ucfirst($callType);
+        $data = [
+            'title' => "📞 Incoming $typeLabel Call", 
+            'body' => "Missed call connecting from {$sender->name}",
+            'icon' => $sender->avatar_url, 
+            'badge' => '/icons/badge-72.png',
+            'data' => ['type' => 'incoming_call', 'sender_id' => $sender->id, 'url' => '/'],
+        ];
+
+        foreach ($subscriptions as $sub) {
+            try { $this->sendWebPush($sub, $data); } catch (\Exception $e) {}
+        }
     }
 
     /** Add emoji reaction */
