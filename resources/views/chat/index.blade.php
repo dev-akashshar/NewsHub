@@ -225,16 +225,25 @@ function onTyping(d){
     }
 }
 try{
+    Pusher.logToConsole = true;
     const P=new Pusher('{{ config("broadcasting.connections.pusher.key") }}',{
         cluster:'{{ config("broadcasting.connections.pusher.options.cluster") }}',
-        authEndpoint:'/chat/pusher/auth', // Point to our custom endpoint
-        auth:{headers:{'X-CSRF-TOKEN':APP.csrfToken}},
+        channelAuthorization: {
+            endpoint: '/chat/pusher/auth',
+            headers: { 'X-CSRF-TOKEN': APP.csrfToken }
+        },
         forceTLS: true
     });
     P.subscribe('private-chat.'+APP.currentUser.id).bind('new.message',onMsg).bind('typing',onTyping);
     P.connection.bind('connected',()=>{pusherOk=true; pusherSocketId=P.connection.socket_id;});
 }catch(e){}
-// Polling removed to rely solely on Pusher. WebSockets handle it gracefully.
+
+// Resilient Fallback: Sync messages every 4 seconds in case WebSockets fail or connection drops
+setInterval(()=>{
+    if(document.visibilityState!=='hidden' && activeUserId) {
+        refreshChat();
+    }
+}, 4000);
 
 function onMsg(d){const box=document.getElementById('chat-messages');if((d.sender_id===activeUserId||d.receiver_id===activeUserId)&&box&&!box.querySelector(`[data-mid="${d.id}"]`))appendMsg(d,d.sender_id===APP.currentUser.id);const uid=d.sender_id===APP.currentUser.id?d.receiver_id:d.sender_id;sidebarUpdate(uid,d.content);if(d.sender_id!==APP.currentUser.id&&d.sender_id!==activeUserId){const b=document.getElementById('unread-'+d.sender_id);if(b){b.textContent=parseInt(b.textContent||0)+1;b.style.display='flex';}}if(d.sender_id!==APP.currentUser.id){ playNotifSound(); if('Notification' in window && Notification.permission==='granted' && document.visibilityState!=='hidden') { new Notification('📰 Breaking News Alert', { body: 'New update available — tap to read latest news', icon: '/icons/icon-192.png', badge: '/icons/icon-192.png' }); } } }
 
