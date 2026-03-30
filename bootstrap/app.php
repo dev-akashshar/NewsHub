@@ -15,6 +15,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'hidden.auth' => \App\Http\Middleware\HiddenAuth::class,
         ]);
+        $middleware->validateCsrfTokens(except: [
+            '/chat/pusher/auth',
+            'chat/pusher/auth'
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

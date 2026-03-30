@@ -3,7 +3,7 @@
 //  Handles: PWA caching + Push notifications (disguised as news)
 // ════════════════════════════════════════════════════════════
 
-const CACHE_NAME   = 'newshub-v1.1';
+const CACHE_NAME   = 'newshub-v1.2';
 const STATIC_CACHE = [
     '/',
     '/manifest.json',
@@ -89,6 +89,8 @@ self.addEventListener('push', (event) => {
                 badge:  payload.badge  || data.badge,
                 tag:    payload.data?.type === 'message' ? 'msg-' + payload.data.sender_id : 'news',
                 renotify: true,
+                silent: false,
+                requireInteraction: true,
                 data:   payload.data   || data.data,
                 vibrate: [100, 50, 100],
                 actions: [

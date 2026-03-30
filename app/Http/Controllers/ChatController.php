@@ -218,6 +218,29 @@ class ChatController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /** Lightweight ping to keep online status active */
+    public function ping(Request $request, ?int $chatWithId = null)
+    {
+        $userId = session('hidden_user_id');
+        User::where('id', $userId)->update(['last_seen' => now()]);
+        
+        $otherOnline = false;
+        $otherLastSeen = null;
+        if ($chatWithId) {
+            $other = User::find($chatWithId);
+            if ($other) {
+                $otherOnline = $other->last_seen && $other->last_seen->diffInMinutes(now()) < 2;
+                $otherLastSeen = $other->last_seen ? $other->last_seen->diffForHumans() : null;
+            }
+        }
+        
+        return response()->json([
+            'ok' => true,
+            'is_online' => $otherOnline,
+            'last_seen' => $otherLastSeen
+        ]);
+    }
+
     /** Add emoji reaction */
     public function react(Request $request, int $messageId)
     {

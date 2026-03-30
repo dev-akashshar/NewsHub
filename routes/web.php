@@ -39,6 +39,7 @@ Route::prefix('chat')->name('chat.')->middleware('hidden.auth')->group(function 
     Route::post('/send',                               [ChatController::class, 'send'])->name('send');
     Route::put('/message/{id}',                        [ChatController::class, 'editMessage'])->name('edit-message');
     Route::post('/typing/{userId}',                    [ChatController::class, 'typing'])->name('typing');
+    Route::post('/ping/{userId?}',                     [ChatController::class, 'ping'])->name('ping');
     Route::post('/react/{messageId}',                  [ChatController::class, 'react'])->name('react');
     Route::delete('/message/{id}',                     [ChatController::class, 'deleteMessage'])->name('delete-message');
     Route::post('/avatar',                             [ChatController::class, 'updateAvatar'])->name('avatar');
@@ -103,4 +104,4 @@ Route::post('/chat/pusher/auth', function (\Illuminate\Http\Request $request) {
         }
     }
     abort(403);
-})->middleware('web')->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+})->middleware('web');

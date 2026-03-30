@@ -52,7 +52,7 @@ window.APP={
     routes:{
         logout:'{{ route("hidden.logout") }}',sessChk:'{{ route("hidden.session-check") }}',
         messages:'/chat/messages/',send:'{{ route("chat.send") }}',editMsg:'/chat/message/',
-        typing:'/chat/typing/',react:'/chat/react/',delMsg:'/chat/message/',
+        typing:'/chat/typing/',react:'/chat/react/',delMsg:'/chat/message/', ping:'/chat/ping/',
         avatar:'{{ route("chat.avatar") }}',
         setPin:'/chat/pin/',verifyPin:'/chat/pin/',removePin:'/chat/pin/',
         autoDelete:'/chat/auto-delete/',
@@ -261,6 +261,23 @@ function updateStatus(u){
 }
 
 async function refreshChat(){if(!activeUserId)return;try{const u=APP.routes.messages+activeUserId+(lastKnownMsgId?'?after='+lastKnownMsgId:'');const r=await apiFetch(u);const d=await r.json();const box=document.getElementById('chat-messages');d.messages.forEach(m=>{if(!box.querySelector(`[data-mid="${m.id}"]`))appendMsg(m,m.is_mine);if(m.id>lastKnownMsgId)lastKnownMsgId=m.id;});}catch(e){}}
+
+// 30s Heartbeat to update Active/Last Seen status without server stress
+setInterval(async () => {
+    if (document.visibilityState === 'hidden') return;
+    try {
+        const u = APP.routes.ping + (activeUserId ? activeUserId : '');
+        const r = await apiFetch(u, 'POST');
+        const d = await r.json();
+        if (activeUserId && d.ok && document.getElementById('chat-status').textContent !== 'typing…') {
+            const st=document.getElementById('chat-status'),dot=document.getElementById('chat-dot'),sbd=document.getElementById('status-'+activeUserId);
+            st.textContent=d.is_online?'🟢 Online':(d.last_seen?'Last seen '+d.last_seen:'Offline');
+            st.className=(d.is_online?'text-emerald-400':'text-slate-500')+' text-[11px] font-medium';
+            dot.className='absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#030712] transition-colors '+(d.is_online?'bg-emerald-500 onP':'bg-slate-600');
+            if(sbd)sbd.className='absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0a0f1a] transition-colors '+(d.is_online?'bg-emerald-500 onP':'bg-slate-700');
+        }
+    } catch(e) {}
+}, 30000);
 
 // OPEN CHAT
 document.querySelectorAll('.user-item').forEach(b=>b.addEventListener('click',()=>{
