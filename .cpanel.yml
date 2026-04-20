@@ -1,0 +1,6 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/akashsha/newschat.akashshar.xyz
+
+    - /bin/cp -R * $DEPLOYPATH
